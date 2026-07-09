@@ -75,15 +75,6 @@ export function AthleteInfoForm({ athleteInfo, onChange, language }: AthleteInfo
           />
         </label>
       </div>
-      <label className="field-label mt-4">
-        {t(language, 'coachRemarks')}
-        <textarea
-          className="text-field min-h-20"
-          value={athleteInfo.coachRemarks}
-          onChange={(event) => update('coachRemarks', event.target.value)}
-          placeholder={t(language, 'coachRemarksPlaceholder')}
-        />
-      </label>
     </section>
   );
 }

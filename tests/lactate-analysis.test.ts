@@ -200,6 +200,59 @@ describe('lactate analysis reference regressions', () => {
     );
   });
 
+  it('uses full Riegel through the longest entered race distance', () => {
+    const raceTimes = [
+      raceTime('race-800', 800, 138),
+      raceTime('race-5k', 5000, 1200),
+    ];
+    const analysis = analyzeTest(
+      pdfReferenceSteps,
+      pdfReferenceThresholdControls,
+      'intermediate',
+      raceTimes,
+    );
+    const riegel = estimateRiegelPerformances(raceTimes);
+    const riegelFiveK = riegel.find((estimate) => estimate.distanceMeters === 5000);
+    const fiveK = analysis.raceEstimates.find(
+      (estimate) => estimate.distanceMeters === 5000,
+    );
+    const tenK = analysis.raceEstimates.find(
+      (estimate) => estimate.distanceMeters === 10000,
+    );
+
+    expect(fiveK?.source).toBe('raceTime');
+    expect(fiveK?.estimatedTimeSeconds).toBeCloseTo(
+      riegelFiveK?.estimatedTimeSeconds ?? 0,
+      6,
+    );
+    expect(tenK?.source).toBe('blended');
+  });
+
+  it('keeps sprint targets faster than race-specific resistance with and without race inputs', () => {
+    const withoutRaceTimes = analyzeTest(
+      pdfReferenceSteps,
+      pdfReferenceThresholdControls,
+      'intermediate',
+    );
+    const withRaceTimes = analyzeTest(
+      pdfReferenceSteps,
+      pdfReferenceThresholdControls,
+      'intermediate',
+      [raceTime('race-400', 400, 64), raceTime('race-800', 800, 138)],
+    );
+
+    for (const analysis of [withoutRaceTimes, withRaceTimes]) {
+      const sprint200 = analysis.targets
+        .find((target) => target.id === 'sprint')
+        ?.times.find((time) => time.distanceMeters === 200);
+      const resistance200 = analysis.targets
+        .find((target) => target.id === 'race-resistance')
+        ?.times.find((time) => time.distanceMeters === 200);
+
+      expect(sprint200?.speedFromKmh).toBeGreaterThan(resistance200?.speedToKmh ?? Infinity);
+    }
+  });
+
   it('defaults the app to baseline plus 0.4 LT1 and modified D-max LT2', () => {
     expect(defaultThresholdControls.aerobicMethod).toBe('baseline_plus_04');
     expect(defaultThresholdControls.anaerobicMethod).toBe('dmax_modified');

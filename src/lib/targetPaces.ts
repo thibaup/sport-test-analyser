@@ -40,6 +40,8 @@ type TargetCategoryConfig = {
   recoveryBaseSeconds: number;
   recoveryPerMeter: number;
   recoveryTimeRatio?: number;
+  raceTimeFastFactor?: number;
+  raceTimeControlledFactor?: number;
 };
 
 const targetCategories: TargetCategoryConfig[] = [
@@ -148,35 +150,16 @@ const targetCategories: TargetCategoryConfig[] = [
     recoveryType: 'walkJog',
     recoveryBaseSeconds: 120,
     recoveryPerMeter: 0.48,
-  },
-  {
-    id: 'anaerobic-capacity',
-    name: 'Anaerobic capacity',
-    purpose: 'Short high-lactate reps using maximum tested speed and speed reserve, with enough recovery to keep quality high.',
-    anchor: 'sprintReserve',
-    intensityFrom: 0.9,
-    intensityTo: 1.0,
-    referenceDistanceMeters: 300,
-    fatigueExponent: 0.09,
-    correctionMin: 0.88,
-    correctionMax: 1.16,
-    distancesMeters: [100, 150, 200, 300, 400],
-    volumeFromMeters: 700,
-    volumeToMeters: 1800,
-    minReps: 3,
-    maxReps: 10,
-    maxRepSpread: 2,
-    recoveryType: 'full',
-    recoveryBaseSeconds: 150,
-    recoveryPerMeter: 0.78,
+    raceTimeFastFactor: 0.97,
+    raceTimeControlledFactor: 1.04,
   },
   {
     id: 'sprint',
     name: 'Sprint / neuromuscular speed',
     purpose: 'Very fast, low-volume running for mechanics, stiffness, and recruitment. Full recovery matters more than volume.',
     anchor: 'sprintReserve',
-    intensityFrom: 1.0,
-    intensityTo: 1.1,
+    intensityFrom: 1.06,
+    intensityTo: 1.16,
     referenceDistanceMeters: 120,
     fatigueExponent: 0.12,
     correctionMin: 0.84,
@@ -190,6 +173,8 @@ const targetCategories: TargetCategoryConfig[] = [
     recoveryType: 'full',
     recoveryBaseSeconds: 120,
     recoveryPerMeter: 1.2,
+    raceTimeFastFactor: 0.9,
+    raceTimeControlledFactor: 0.95,
   },
 ];
 
@@ -224,7 +209,9 @@ export function generateTargetPaces(
     const baseSpeedTo = anchor * intensityTo;
     const times = category.distancesMeters.map((distance) => {
       const raceSpecificTime =
-        category.id === 'race-resistance' ? estimateRiegelTimeForDistance(raceTimes, distance) : undefined;
+        category.id === 'race-resistance' || category.id === 'sprint'
+          ? estimateRiegelTimeForDistance(raceTimes, distance)
+          : undefined;
       return calculateDistanceRecommendation(
         distance,
         baseSpeedFrom,
@@ -268,8 +255,10 @@ function calculateDistanceRecommendation(
   raceSpecificTimeSeconds?: number,
 ): TargetDistanceTime {
   if (raceSpecificTimeSeconds) {
-    const fastTime = raceSpecificTimeSeconds * 0.97;
-    const controlledTime = raceSpecificTimeSeconds * 1.04;
+    const fastFactor = category.raceTimeFastFactor ?? 0.97;
+    const controlledFactor = category.raceTimeControlledFactor ?? 1.04;
+    const fastTime = raceSpecificTimeSeconds * fastFactor;
+    const controlledTime = raceSpecificTimeSeconds * controlledFactor;
     const speedFrom = speedFromTime(distanceMeters, controlledTime);
     const speedTo = speedFromTime(distanceMeters, fastTime);
     const avgTime = (fastTime + controlledTime) / 2;
@@ -293,7 +282,7 @@ function calculateDistanceRecommendation(
       totalVolumeMetersFrom: reps.from * distanceMeters,
       totalVolumeMetersTo: reps.to * distanceMeters,
       explanation: distanceUseExplanation(category.id, distanceMeters),
-      formula: 'Riegel median race projection x 97-104% target window',
+      formula: `Riegel median race projection x ${(fastFactor * 100).toFixed(0)}-${(controlledFactor * 100).toFixed(0)}% target window`,
     };
   }
 
@@ -376,11 +365,6 @@ function distanceUseExplanation(categoryId: string, distanceMeters: number): str
     if (distanceMeters <= 120) return 'Fast mechanics, stiffness, and top-speed exposure with full recovery.';
     return 'Speed endurance while keeping the session low-volume and high-quality.';
   }
-  if (categoryId === 'anaerobic-capacity') {
-    if (distanceMeters <= 150) return 'Fast relaxed running that raises lactate without long-form breakdown.';
-    if (distanceMeters <= 300) return 'Main anaerobic-capacity distance for tolerance and repeatable speed.';
-    return 'Longer capacity rep; use sparingly because fatigue rises quickly.';
-  }
   if (categoryId === 'race-resistance') {
     if (distanceMeters <= 300) return 'Useful for sharpening, closing speed, and pace changes.';
     if (distanceMeters <= 500) return 'Strong speed-endurance stimulus for middle-distance and 5K ability.';
@@ -426,13 +410,21 @@ export function estimateRacePerformances(
   if (lactateEstimates.length === 0) return riegelEstimates;
 
   const inputs = usableRaceTimes(raceTimes);
+  const maxProvidedDistance = Math.max(
+    ...inputs.map((input) => input.distanceMeters),
+  );
   const lactateByDistance = new Map(
     lactateEstimates.map((estimate) => [estimate.distanceMeters, estimate]),
   );
 
   return riegelEstimates.map((riegelEstimate) => {
     const lactateEstimate = lactateByDistance.get(riegelEstimate.distanceMeters);
-    if (!lactateEstimate) return riegelEstimate;
+    if (
+      !lactateEstimate ||
+      riegelEstimate.distanceMeters <= maxProvidedDistance
+    ) {
+      return riegelEstimate;
+    }
 
     const riegelWeight = calculateRiegelBlendWeight(
       riegelEstimate.distanceMeters,

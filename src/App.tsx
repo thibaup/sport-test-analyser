@@ -195,6 +195,7 @@ function App() {
         {activeTab === "export" && (
           <ExportPanel
             athleteInfo={athleteInfo}
+            onAthleteInfoChange={setAthleteInfo}
             steps={steps}
             maxLactateTest={maxLactateTest}
             raceTimes={raceTimes}

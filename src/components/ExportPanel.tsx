@@ -17,6 +17,7 @@ import type {
 
 interface ExportPanelProps {
   athleteInfo: AthleteInfo;
+  onAthleteInfoChange: (athleteInfo: AthleteInfo) => void;
   steps: TestStep[];
   maxLactateTest: MaxLactateTest;
   raceTimes: RaceTime[];
@@ -30,6 +31,7 @@ interface ExportPanelProps {
 
 export function ExportPanel({
   athleteInfo,
+  onAthleteInfoChange,
   steps,
   maxLactateTest,
   raceTimes,
@@ -101,6 +103,20 @@ export function ExportPanel({
           <h2>{t(language, "exportTitle")}</h2>
         </div>
       </div>
+      <label className="field-label mb-5">
+        {t(language, "coachRemarks")}
+        <textarea
+          className="text-field min-h-24"
+          value={athleteInfo.coachRemarks}
+          onChange={(event) =>
+            onAthleteInfoChange({
+              ...athleteInfo,
+              coachRemarks: event.target.value,
+            })
+          }
+          placeholder={t(language, "coachRemarksPlaceholder")}
+        />
+      </label>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <button className="export-button" type="button" onClick={exportPdf}>
           <FileText size={20} aria-hidden="true" />
