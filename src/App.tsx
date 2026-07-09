@@ -95,7 +95,11 @@ function App() {
         onDistanceUnitChange={setDistanceUnit}
       />
 
-      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+      <main
+        className={`mx-auto px-4 py-6 sm:px-6 lg:px-8 ${
+          activeTab === "charts" ? "max-w-[96rem]" : "max-w-7xl"
+        }`}
+      >
         <nav className="mb-5 grid grid-cols-4 gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm print:hidden sm:flex sm:overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;

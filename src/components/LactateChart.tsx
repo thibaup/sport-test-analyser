@@ -358,10 +358,24 @@ export function handleChartSelection(
         : controls.manualTarget;
 
   if (target === 'aerobic' && controls.aerobicMethod === 'manual_lt1') {
-    onChange({ ...controls, manualAerobicSpeedKmh: round(speed, 2), manualTarget: 'aerobic' });
+    const manualAerobicSpeedKmh = round(speed, 2);
+    if (
+      controls.manualAerobicSpeedKmh === manualAerobicSpeedKmh &&
+      controls.manualTarget === 'aerobic'
+    ) {
+      return;
+    }
+    onChange({ ...controls, manualAerobicSpeedKmh, manualTarget: 'aerobic' });
   }
   if (target === 'anaerobic' && controls.anaerobicMethod === 'manual_lt2') {
-    onChange({ ...controls, manualAnaerobicSpeedKmh: round(speed, 2), manualTarget: 'anaerobic' });
+    const manualAnaerobicSpeedKmh = round(speed, 2);
+    if (
+      controls.manualAnaerobicSpeedKmh === manualAnaerobicSpeedKmh &&
+      controls.manualTarget === 'anaerobic'
+    ) {
+      return;
+    }
+    onChange({ ...controls, manualAnaerobicSpeedKmh, manualTarget: 'anaerobic' });
   }
 }
 

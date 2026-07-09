@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useRef } from "react";
 import {
   CartesianGrid,
   ComposedChart,
   Legend,
   Line,
+  ReferenceDot,
   ReferenceLine,
   ResponsiveContainer,
-  Scatter,
   Tooltip,
   XAxis,
   YAxis,
@@ -44,7 +44,7 @@ export function CombinedChart({
   thresholdControls,
   onThresholdControlsChange,
 }: CombinedChartProps) {
-  const [isDraggingThreshold, setIsDraggingThreshold] = useState(false);
+  const isDraggingThreshold = useRef(false);
   const validPoints = analysis.validPoints;
   const actualPoints = validPoints.map((point) => ({
     step: point.step,
@@ -80,14 +80,14 @@ export function CombinedChart({
         {chartData.length < 2 ? (
           <EmptyChartMessage language={language} />
         ) : (
-          <ResponsiveContainer width="100%" height={420}>
+          <ResponsiveContainer width="100%" height={560}>
             <ComposedChart
               data={chartData}
               className={hasManualThreshold ? "cursor-crosshair" : undefined}
-              margin={{ top: 14, right: hasHeartRateLine ? 54 : 24, bottom: 14, left: 6 }}
+              margin={{ top: 20, right: hasHeartRateLine ? 72 : 28, bottom: 20, left: 16 }}
               onMouseDown={(state: ChartClickState) => {
                 if (!hasManualThreshold) return;
-                setIsDraggingThreshold(true);
+                isDraggingThreshold.current = true;
                 handleChartSelection(
                   state,
                   thresholdControls,
@@ -95,15 +95,19 @@ export function CombinedChart({
                 );
               }}
               onMouseMove={(state: ChartClickState) => {
-                if (isDraggingThreshold)
+                if (isDraggingThreshold.current)
                   handleChartSelection(
                     state,
                     thresholdControls,
                     onThresholdControlsChange,
                   );
               }}
-              onMouseUp={() => setIsDraggingThreshold(false)}
-              onMouseLeave={() => setIsDraggingThreshold(false)}
+              onMouseUp={() => {
+                isDraggingThreshold.current = false;
+              }}
+              onMouseLeave={() => {
+                isDraggingThreshold.current = false;
+              }}
               onClick={(state: ChartClickState) =>
                 handleChartSelection(
                   state,
@@ -140,6 +144,10 @@ export function CombinedChart({
                 />
               )}
               <Tooltip
+                shared
+                isAnimationActive={false}
+                cursor={{ stroke: "#64748b", strokeDasharray: "4 4", strokeWidth: 1 }}
+                wrapperStyle={{ pointerEvents: "none", zIndex: 10 }}
                 content={(props) => (
                   <CombinedTooltip {...props} language={language} />
                 )}
@@ -199,25 +207,35 @@ export function CombinedChart({
                   isAnimationActive={false}
                 />
               )}
-              <Scatter
-                yAxisId="lactate"
-                data={actualPoints}
-                dataKey="lactate"
-                name={t(language, "lactatePoints")}
-                fill="#0284c7"
-                legendType="none"
-                isAnimationActive={false}
-              />
-              {hasHeartRateLine && (
-                <Scatter
-                  yAxisId="heartRate"
-                  data={actualPoints}
-                  dataKey="heartRate"
-                  name={t(language, "hrPoints")}
-                  fill="#be123c"
-                  legendType="none"
-                  isAnimationActive={false}
+              {actualPoints.map((point) => (
+                <ReferenceDot
+                  key={`lactate-${point.step}`}
+                  yAxisId="lactate"
+                  x={point.speedKmh}
+                  y={point.lactate}
+                  r={4}
+                  fill="#0284c7"
+                  stroke="#ffffff"
+                  strokeWidth={1.5}
                 />
+              ))}
+              {hasHeartRateLine && (
+                <>
+                  {actualPoints
+                    .filter((point) => Number.isFinite(point.heartRate))
+                    .map((point) => (
+                      <ReferenceDot
+                        key={`heart-rate-${point.step}`}
+                        yAxisId="heartRate"
+                        x={point.speedKmh}
+                        y={point.heartRate as number}
+                        r={4}
+                        fill="#be123c"
+                        stroke="#ffffff"
+                        strokeWidth={1.5}
+                      />
+                    ))}
+                </>
               )}
             </ComposedChart>
           </ResponsiveContainer>
