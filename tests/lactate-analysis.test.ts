@@ -136,7 +136,7 @@ describe('lactate analysis reference regressions', () => {
     expectZone(analysis.zones[6], 'NMR', 19.0, undefined, 204, undefined);
   });
 
-  it('weights short sparse race inputs less than multiple longer race inputs', () => {
+  it('gives shorter estimates more Riegel weight while still valuing longer race evidence', () => {
     const shortInputs = usableRaceTimes([
       raceTime('race-400', 400, 64),
       raceTime('race-800', 800, 138),
@@ -148,10 +148,12 @@ describe('lactate analysis reference regressions', () => {
 
     const shortRaceWeight = calculateRiegelBlendWeight(5000, shortInputs);
     const longerRaceWeight = calculateRiegelBlendWeight(5000, longerInputs);
+    const shortDistanceWeight = calculateRiegelBlendWeight(1500, shortInputs);
 
-    expect(shortRaceWeight).toBeCloseTo(0.28, 2);
-    expect(longerRaceWeight).toBeGreaterThan(0.75);
-    expect(longerRaceWeight).toBeLessThan(0.8);
+    expect(shortRaceWeight).toBeCloseTo(0.33, 2);
+    expect(shortDistanceWeight).toBeGreaterThan(shortRaceWeight);
+    expect(longerRaceWeight).toBeGreaterThan(0.8);
+    expect(longerRaceWeight).toBeLessThan(0.85);
     expect(longerRaceWeight).toBeGreaterThan(shortRaceWeight);
   });
 
@@ -185,7 +187,7 @@ describe('lactate analysis reference regressions', () => {
 
     expect(blended800?.source).toBe('raceTime');
     expect(blendedFiveK?.source).toBe('blended');
-    expect(blendedFiveK?.method).toContain('Riegel 28%');
+    expect(blendedFiveK?.method).toContain('Riegel 33%');
     expect(blendedFiveK?.estimatedTimeSeconds).toBeGreaterThan(
       Math.min(
         lactateFiveK?.estimatedTimeSeconds ?? Infinity,
@@ -253,6 +255,30 @@ describe('lactate analysis reference regressions', () => {
     }
   });
 
+  it('makes shorter repetitions faster while tapering them toward the zone anchor as they get longer', () => {
+    const analysis = analyzeTest(
+      pdfReferenceSteps,
+      pdfReferenceThresholdControls,
+      'intermediate',
+    );
+
+    expect(targetSpeed(analysis, 'easy-intervals', 200)).toBeGreaterThan(
+      targetSpeed(analysis, 'easy-intervals', 1600),
+    );
+    expect(targetSpeed(analysis, 'extensive', 200)).toBeGreaterThan(
+      targetSpeed(analysis, 'extensive', 1600),
+    );
+    expect(targetSpeed(analysis, 'threshold', 400)).toBeGreaterThan(
+      targetSpeed(analysis, 'threshold', 2000),
+    );
+    expect(targetSpeed(analysis, 'vo2max', 300)).toBeGreaterThan(
+      targetSpeed(analysis, 'vo2max', 1200),
+    );
+    expect(targetSpeed(analysis, 'race-resistance', 200)).toBeGreaterThan(
+      targetSpeed(analysis, 'race-resistance', 600),
+    );
+  });
+
   it('defaults the app to baseline plus 0.4 LT1 and modified D-max LT2', () => {
     expect(defaultThresholdControls.aerobicMethod).toBe('baseline_plus_04');
     expect(defaultThresholdControls.anaerobicMethod).toBe('dmax_modified');
@@ -274,6 +300,16 @@ function stagedStep(step: number, speedKmh: number, durationSeconds: number, lac
 
 function raceTime(id: string, distanceMeters: number, timeSeconds: number): RaceTime {
   return { id, distanceMeters, timeSeconds };
+}
+
+function targetSpeed(
+  analysis: ReturnType<typeof analyzeTest>,
+  targetId: string,
+  distanceMeters: number,
+): number {
+  const target = analysis.targets.find((item) => item.id === targetId);
+  const time = target?.times.find((item) => item.distanceMeters === distanceMeters);
+  return time?.speedFromKmh ?? 0;
 }
 
 function expectZone(

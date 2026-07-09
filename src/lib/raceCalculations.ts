@@ -80,12 +80,18 @@ export function calculateRiegelBlendWeight(
     1,
   );
   const inputCountEvidence = clamp((inputs.length - 1) / 2, 0, 1);
+  const shortDistanceEvidence = clamp(
+    Math.log(10000 / targetDistanceMeters) / Math.log(10000 / 800),
+    0,
+    1,
+  );
 
   return clamp(
     0.15 +
       0.6 * distanceRelevance +
       0.15 * longDistanceEvidence +
-      0.1 * inputCountEvidence,
+      0.1 * inputCountEvidence +
+      0.18 * shortDistanceEvidence,
     0.15,
     0.9,
   );
