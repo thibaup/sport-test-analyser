@@ -274,6 +274,10 @@ describe('lactate analysis reference regressions', () => {
     expect(targetSpeed(analysis, 'vo2max', 300)).toBeGreaterThan(
       targetSpeed(analysis, 'vo2max', 1200),
     );
+    expect(
+      targetSpeed(analysis, 'vo2max', 300) /
+        targetSpeed(analysis, 'vo2max', 800),
+    ).toBeGreaterThan(1.05);
     expect(targetSpeed(analysis, 'race-resistance', 200)).toBeGreaterThan(
       targetSpeed(analysis, 'race-resistance', 600),
     );
