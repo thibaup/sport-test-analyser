@@ -205,7 +205,7 @@ export interface RaceEstimate {
   estimatedTimeSeconds: number;
   estimatedPaceSecondsPerKm: number;
   method: string;
-  source: 'raceTime' | 'lactate';
+  source: 'raceTime' | 'lactate' | 'blended';
   inputCount?: number;
   confidenceLabel: ConfidenceLabel;
 }

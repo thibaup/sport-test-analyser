@@ -105,6 +105,7 @@ type CopyKey =
   | "raceEstimates"
   | "raceEstimateNote"
   | "raceRiegelNote"
+  | "raceBlendNote"
   | "estimatedTime"
   | "estimatedPace"
   | "method"
@@ -236,6 +237,8 @@ const copy: Record<Language, Record<CopyKey, string>> = {
       "Aparte wedstrijdinschattingen uit de lactaattest. Geen garantie en vooral nuttig als realistische richtlijn.",
     raceRiegelNote:
       "Voorspellingen met de Riegel-regel op basis van de ingevoerde wedstrijdtijden.",
+    raceBlendNote:
+      "Wedstrijdtijden en lactaattest worden per afstand gewogen gecombineerd.",
     estimatedTime: "Geschatte tijd",
     estimatedPace: "Geschat tempo",
     method: "Methode",
@@ -367,6 +370,8 @@ const copy: Record<Language, Record<CopyKey, string>> = {
       "Separate race estimates from the lactate test. Not guaranteed, mainly useful as realistic guidance.",
     raceRiegelNote:
       "Predictions use the Riegel rule based on the entered race times.",
+    raceBlendNote:
+      "Race times and the lactate test are combined with distance-aware weighting.",
     estimatedTime: "Estimated time",
     estimatedPace: "Estimated pace",
     method: "Method",

@@ -1,5 +1,5 @@
 import type { RaceEstimate, RaceTime } from '../types/lactate';
-import { formatDuration, isFiniteNumber, speedToPaceSecondsPerKm } from './conversions';
+import { clamp, formatDuration, isFiniteNumber, speedToPaceSecondsPerKm } from './conversions';
 
 const riegelExponent = 1.06;
 
@@ -58,6 +58,37 @@ export function estimateRiegelTimeForDistance(raceTimes: RaceTime[], distanceMet
   const inputs = usableRaceTimes(raceTimes);
   if (inputs.length === 0) return undefined;
   return median(inputs.map((input) => predictRiegelTime(input, distanceMeters)));
+}
+
+export function calculateRiegelBlendWeight(
+  targetDistanceMeters: number,
+  inputs: UsableRaceTime[],
+): number {
+  if (inputs.length === 0 || targetDistanceMeters <= 0) return 0;
+
+  const distanceRelevance =
+    inputs.reduce((sum, input) => {
+      const ratio = targetDistanceMeters / input.distanceMeters;
+      const closeness = Math.exp(-Math.abs(Math.log(ratio)) / 1.25);
+      const longerTargetPenalty = ratio > 1 ? 0.75 : 1;
+      return sum + closeness * longerTargetPenalty;
+    }, 0) / inputs.length;
+  const medianDistance = median(inputs.map((input) => input.distanceMeters));
+  const longDistanceEvidence = clamp(
+    Math.log(Math.max(medianDistance, 800) / 800) / Math.log(21097.5 / 800),
+    0,
+    1,
+  );
+  const inputCountEvidence = clamp((inputs.length - 1) / 2, 0, 1);
+
+  return clamp(
+    0.15 +
+      0.6 * distanceRelevance +
+      0.15 * longDistanceEvidence +
+      0.1 * inputCountEvidence,
+    0.15,
+    0.9,
+  );
 }
 
 function predictRiegelTime(input: UsableRaceTime, targetDistanceMeters: number): number {

@@ -612,21 +612,18 @@ function drawRaceEstimates(
         labels.distance,
         labels.estimatedTime,
         labels.estimatedPace,
-        labels.method,
       ],
     ],
     body: input.analysis.raceEstimates.map((estimate) => [
       estimate.distanceLabel,
       formatDuration(estimate.estimatedTimeSeconds),
       formatPace(estimate.estimatedPaceSecondsPerKm, input.paceUnit),
-      estimate.method,
     ]),
     styles: { fontSize: 7.5, cellPadding: 1.5 },
     columnStyles: {
-      0: { cellWidth: 30 },
-      1: { halign: "center", cellWidth: 32 },
-      2: { halign: "center", cellWidth: 34 },
-      3: { cellWidth: 82 },
+      0: { cellWidth: 54 },
+      1: { halign: "center", cellWidth: 54 },
+      2: { halign: "center", cellWidth: 54 },
     },
   });
 }

@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { defaultThresholdControls } from '../src/data/exampleTest';
+import { lt2MethodOptions } from '../src/lib/lactateThresholds';
 import { analyzeTest } from '../src/lib/analysisEngine';
-import type { MaxLactateTest, TestStep, ThresholdControls, TrainingZone } from '../src/types/lactate';
+import {
+  calculateRiegelBlendWeight,
+  estimateRiegelPerformances,
+  usableRaceTimes,
+} from '../src/lib/raceCalculations';
+import type { MaxLactateTest, RaceTime, TestStep, ThresholdControls, TrainingZone } from '../src/types/lactate';
 
 const thresholdControls: ThresholdControls = {
   aerobicMethod: 'fixed_2',
@@ -130,9 +136,74 @@ describe('lactate analysis reference regressions', () => {
     expectZone(analysis.zones[6], 'NMR', 19.0, undefined, 204, undefined);
   });
 
-  it('defaults the app to baseline LT1 and modified D-max LT2', () => {
-    expect(defaultThresholdControls.aerobicMethod).toBe('baseline');
+  it('weights short sparse race inputs less than multiple longer race inputs', () => {
+    const shortInputs = usableRaceTimes([
+      raceTime('race-400', 400, 64),
+      raceTime('race-800', 800, 138),
+    ]);
+    const longerInputs = usableRaceTimes([
+      raceTime('race-5k', 5000, 1200),
+      raceTime('race-10k', 10000, 2520),
+    ]);
+
+    const shortRaceWeight = calculateRiegelBlendWeight(5000, shortInputs);
+    const longerRaceWeight = calculateRiegelBlendWeight(5000, longerInputs);
+
+    expect(shortRaceWeight).toBeCloseTo(0.28, 2);
+    expect(longerRaceWeight).toBeGreaterThan(0.75);
+    expect(longerRaceWeight).toBeLessThan(0.8);
+    expect(longerRaceWeight).toBeGreaterThan(shortRaceWeight);
+  });
+
+  it('blends shared estimates while retaining Riegel-only 800 m predictions', () => {
+    const raceTimes = [
+      raceTime('race-400', 400, 64),
+      raceTime('race-800', 800, 138),
+    ];
+    const lactateOnly = analyzeTest(
+      pdfReferenceSteps,
+      pdfReferenceThresholdControls,
+      'intermediate',
+    );
+    const blended = analyzeTest(
+      pdfReferenceSteps,
+      pdfReferenceThresholdControls,
+      'intermediate',
+      raceTimes,
+    );
+    const riegel = estimateRiegelPerformances(raceTimes);
+    const lactateFiveK = lactateOnly.raceEstimates.find(
+      (estimate) => estimate.distanceMeters === 5000,
+    );
+    const riegelFiveK = riegel.find((estimate) => estimate.distanceMeters === 5000);
+    const blendedFiveK = blended.raceEstimates.find(
+      (estimate) => estimate.distanceMeters === 5000,
+    );
+    const blended800 = blended.raceEstimates.find(
+      (estimate) => estimate.distanceMeters === 800,
+    );
+
+    expect(blended800?.source).toBe('raceTime');
+    expect(blendedFiveK?.source).toBe('blended');
+    expect(blendedFiveK?.method).toContain('Riegel 28%');
+    expect(blendedFiveK?.estimatedTimeSeconds).toBeGreaterThan(
+      Math.min(
+        lactateFiveK?.estimatedTimeSeconds ?? Infinity,
+        riegelFiveK?.estimatedTimeSeconds ?? Infinity,
+      ),
+    );
+    expect(blendedFiveK?.estimatedTimeSeconds).toBeLessThan(
+      Math.max(
+        lactateFiveK?.estimatedTimeSeconds ?? -Infinity,
+        riegelFiveK?.estimatedTimeSeconds ?? -Infinity,
+      ),
+    );
+  });
+
+  it('defaults the app to baseline plus 0.4 LT1 and modified D-max LT2', () => {
+    expect(defaultThresholdControls.aerobicMethod).toBe('baseline_plus_04');
     expect(defaultThresholdControls.anaerobicMethod).toBe('dmax_modified');
+    expect(lt2MethodOptions).toEqual(['dmax_modified', 'manual_lt2']);
   });
 });
 
@@ -146,6 +217,10 @@ function stagedStep(step: number, speedKmh: number, durationSeconds: number, lac
     lactate,
     heartRate,
   };
+}
+
+function raceTime(id: string, distanceMeters: number, timeSeconds: number): RaceTime {
+  return { id, distanceMeters, timeSeconds };
 }
 
 function expectZone(

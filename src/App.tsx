@@ -65,7 +65,7 @@ function App() {
     defaultThresholdControls,
   );
   const profile = "advanced" as const;
-  const [zoneCount, setZoneCount] = useState<ZoneCount>(5);
+  const [zoneCount, setZoneCount] = useState<ZoneCount>(7);
   const [paceUnit, setPaceUnit] = useState<PaceUnit>("minPerKm");
   const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>("km");
   const [activeTab, setActiveTab] = useState<TabId>("input");

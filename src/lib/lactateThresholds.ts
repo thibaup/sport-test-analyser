@@ -27,7 +27,7 @@ interface MethodDefinition {
 }
 
 export const lt1MethodOptions: Lt1MethodId[] = ['fixed_2', 'baseline', 'baseline_plus_04', 'baseline_plus', 'manual_lt1'];
-export const lt2MethodOptions: Lt2MethodId[] = ['dmax_modified', 'dmax', 'tangent51', 'stegmann', 'fixed_4', 'manual_lt2'];
+export const lt2MethodOptions: Lt2MethodId[] = ['dmax_modified', 'manual_lt2'];
 
 export const thresholdMethodDefinitions: MethodDefinition[] = [
   {

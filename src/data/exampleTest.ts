@@ -10,7 +10,7 @@ export const defaultAthleteInfo: AthleteInfo = {
 };
 
 export const defaultThresholdControls: ThresholdControls = {
-  aerobicMethod: 'baseline',
+  aerobicMethod: 'baseline_plus_04',
   anaerobicMethod: 'dmax_modified',
   manualTarget: 'aerobic',
 };

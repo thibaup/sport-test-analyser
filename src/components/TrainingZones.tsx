@@ -121,9 +121,6 @@ export function TrainingZones({
                     </dd>
                   </div>
                 </dl>
-                <p className="mt-3 text-xs font-semibold text-slate-500">
-                  {zone.boundaryLabel}
-                </p>
               </div>
             </div>
           </article>

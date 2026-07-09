@@ -9,7 +9,12 @@ import type {
   ZoneProfile,
 } from '../types/lactate';
 import { clamp, round, speedToPaceSecondsPerKm, timeForDistanceSeconds } from './conversions';
-import { estimateRiegelPerformances, estimateRiegelTimeForDistance } from './raceCalculations';
+import {
+  calculateRiegelBlendWeight,
+  estimateRiegelPerformances,
+  estimateRiegelTimeForDistance,
+  usableRaceTimes,
+} from './raceCalculations';
 import { estimateVvo2Speed } from './trainingZones';
 
 type AnchorId = 'aerobic' | 'anaerobic' | 'vvo2' | 'maxTested' | 'sprintReserve';
@@ -412,8 +417,55 @@ export function estimateRacePerformances(
   lactateMaxOverride?: number,
 ): RaceEstimate[] {
   const riegelEstimates = estimateRiegelPerformances(raceTimes);
-  if (riegelEstimates.length > 0) return riegelEstimates;
+  const lactateEstimates = estimateLactateRacePerformances(
+    thresholds,
+    points,
+    lactateMaxOverride,
+  );
+  if (riegelEstimates.length === 0) return lactateEstimates;
+  if (lactateEstimates.length === 0) return riegelEstimates;
 
+  const inputs = usableRaceTimes(raceTimes);
+  const lactateByDistance = new Map(
+    lactateEstimates.map((estimate) => [estimate.distanceMeters, estimate]),
+  );
+
+  return riegelEstimates.map((riegelEstimate) => {
+    const lactateEstimate = lactateByDistance.get(riegelEstimate.distanceMeters);
+    if (!lactateEstimate) return riegelEstimate;
+
+    const riegelWeight = calculateRiegelBlendWeight(
+      riegelEstimate.distanceMeters,
+      inputs,
+    );
+    const lactateWeight = 1 - riegelWeight;
+    const estimatedTimeSeconds =
+      riegelEstimate.estimatedTimeSeconds * riegelWeight +
+      lactateEstimate.estimatedTimeSeconds * lactateWeight;
+    const speedKmh =
+      (riegelEstimate.distanceMeters / 1000 / estimatedTimeSeconds) * 3600;
+
+    return {
+      ...lactateEstimate,
+      estimatedTimeSeconds,
+      estimatedPaceSecondsPerKm: speedToPaceSecondsPerKm(speedKmh) ?? 0,
+      method: `Distance-weighted blend: Riegel ${Math.round(riegelWeight * 100)}% + lactate model ${Math.round(lactateWeight * 100)}%`,
+      source: 'blended' as const,
+      inputCount: riegelEstimate.inputCount,
+      confidenceLabel:
+        riegelEstimate.confidenceLabel === 'moderate' &&
+        lactateEstimate.confidenceLabel === 'moderate'
+          ? 'moderate'
+          : 'low',
+    };
+  });
+}
+
+function estimateLactateRacePerformances(
+  thresholds: ThresholdPair,
+  points: ValidTestPoint[],
+  lactateMaxOverride?: number,
+): RaceEstimate[] {
   const aerobic = thresholds.aerobic?.speedKmh;
   const anaerobic = thresholds.anaerobic?.speedKmh;
   if (!aerobic || !anaerobic || points.length < 5) return [];
