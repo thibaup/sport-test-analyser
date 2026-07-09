@@ -8,6 +8,8 @@ interface ZoneContext {
   maxHeartRate?: number;
 }
 
+const NMR_HEART_RATE_SPLIT = 0.7;
+
 interface StandardZone {
   id: string;
   zone: number;
@@ -43,7 +45,9 @@ export function generateTrainingZones(
     maxHeartRate: maxValues?.heartRate,
   };
 
-  return standardZones(zoneCount, lt1, lt2, context).map(toTrainingZone);
+  return standardZones(zoneCount, lt1, lt2, context)
+    .map(preventInvertedHeartRateRange)
+    .map(toTrainingZone);
 }
 
 export function estimateVvo2Speed(anaerobicSpeed: number, maxTestedSpeed: number, maxLactate: number): number {
@@ -100,6 +104,17 @@ function standard7Zones(lt1: number, lt2: number, context: ZoneContext): Standar
   const hrZ3Max = context.lt1HeartRate && context.lt2HeartRate ? Math.round((context.lt1HeartRate + context.lt2HeartRate) / 2) : undefined;
   const hrZ4Max = context.lt2HeartRate ? Math.round(context.lt2HeartRate) : undefined;
   const hrZ5Max = context.lt2HeartRate ? Math.round(1.02 * context.lt2HeartRate) : undefined;
+  const vo2HeartRateFrom = hrZ5Max != null ? hrZ5Max + 1 : undefined;
+  const nmrHeartRateFrom = splitNmrHeartRate(
+    vo2HeartRateFrom,
+    context.maxHeartRate,
+  );
+  const vo2HeartRateTo =
+    nmrHeartRateFrom !== undefined &&
+    vo2HeartRateFrom !== undefined &&
+    nmrHeartRateFrom > vo2HeartRateFrom
+      ? nmrHeartRateFrom - 1
+      : context.maxHeartRate;
 
   return [
     zoneDefinition(
@@ -116,9 +131,25 @@ function standard7Zones(lt1: number, lt2: number, context: ZoneContext): Standar
     zoneDefinition(3, 'TMP', 'LT1 - 1/2(LT1+LT2)', z2Max, z3Max, hrZ2Max != null ? hrZ2Max + 1 : undefined, hrZ3Max, '#22C55E'),
     zoneDefinition(4, 'SST', '1/2(LT1+LT2) - LT2', z3Max, z4Max, hrZ3Max != null ? hrZ3Max + 1 : undefined, hrZ4Max, '#EAB308'),
     zoneDefinition(5, 'THR', 'LT2 - 103% LT2', z4Max, z5Max, hrZ4Max != null ? hrZ4Max + 1 : undefined, hrZ5Max, '#F97316'),
-    zoneDefinition(6, 'VO2', '103% LT2 - 120% LT2', z5Max, z6Max, hrZ5Max != null ? hrZ5Max + 1 : undefined, context.maxHeartRate || undefined, '#EF4444'),
-    zoneDefinition(7, 'NMR', '> 120% LT2', z6Max, null, context.maxHeartRate ? context.maxHeartRate + 1 : undefined, null, '#991B1B'),
+    zoneDefinition(6, 'VO2', '103% LT2 - 120% LT2', z5Max, z6Max, vo2HeartRateFrom, vo2HeartRateTo, '#EF4444'),
+    zoneDefinition(7, 'NMR', '> 120% LT2', z6Max, null, nmrHeartRateFrom, null, '#991B1B'),
   ];
+}
+
+function splitNmrHeartRate(
+  vo2HeartRateFrom: number | undefined,
+  maxHeartRate: number | undefined,
+): number | undefined {
+  if (vo2HeartRateFrom === undefined || maxHeartRate === undefined) return undefined;
+  if (maxHeartRate <= vo2HeartRateFrom) return maxHeartRate;
+
+  return Math.min(
+    maxHeartRate,
+    Math.ceil(
+      vo2HeartRateFrom +
+        (maxHeartRate - vo2HeartRateFrom) * NMR_HEART_RATE_SPLIT,
+    ),
+  );
 }
 
 function zoneDefinition(
@@ -143,6 +174,23 @@ function zoneDefinition(
     maxHeartRate,
     color,
     ...details,
+  };
+}
+
+function preventInvertedHeartRateRange(zone: StandardZone): StandardZone {
+  if (
+    zone.minHeartRate === undefined ||
+    zone.maxHeartRate === undefined ||
+    zone.maxHeartRate === null ||
+    zone.minHeartRate <= zone.maxHeartRate
+  ) {
+    return zone;
+  }
+
+  return {
+    ...zone,
+    minHeartRate: zone.maxHeartRate,
+    maxHeartRate: zone.maxHeartRate,
   };
 }
 

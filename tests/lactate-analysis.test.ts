@@ -110,8 +110,24 @@ describe('lactate analysis reference regressions', () => {
     expectZone(analysis.zones[2], 'TMP', 14.3, 15.0, 189, 192);
     expectZone(analysis.zones[3], 'SST', 15.0, 15.8, 193, 195);
     expectZone(analysis.zones[4], 'THR', 15.8, 16.3, 196, 199);
-    expectZone(analysis.zones[5], 'VO2', 16.3, 19.0, 200, 198);
-    expectZone(analysis.zones[6], 'NMR', 19.0, undefined, 199, undefined);
+    expectZone(analysis.zones[5], 'VO2', 16.3, 19.0, 198, 198);
+    expectZone(analysis.zones[6], 'NMR', 19.0, undefined, 198, undefined);
+  });
+
+  it('uses a manually supplied maximum HR without changing valid zone boundaries', () => {
+    const analysis = analyzeTest(
+      pdfReferenceSteps,
+      pdfReferenceThresholdControls,
+      'intermediate',
+      [],
+      undefined,
+      7,
+      205,
+    );
+
+    expectZone(analysis.zones[4], 'THR', 15.8, 16.3, 196, 199);
+    expectZone(analysis.zones[5], 'VO2', 16.3, 19.0, 200, 203);
+    expectZone(analysis.zones[6], 'NMR', 19.0, undefined, 204, undefined);
   });
 
   it('defaults the app to baseline LT1 and modified D-max LT2', () => {

@@ -31,8 +31,9 @@ export interface AthleteInfo {
   athleteName: string;
   testDate: string;
   coachName: string;
+  maxHeartRate?: number;
   protocol: string;
-  notes: string;
+  coachRemarks: string;
 }
 
 export interface TestStep {

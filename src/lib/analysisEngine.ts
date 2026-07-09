@@ -14,13 +14,18 @@ export function analyzeTest(
   raceTimes: RaceTime[] = [],
   maxLactateTest?: MaxLactateTest,
   zoneCount: ZoneCount = 5,
+  maxHeartRateOverride?: number,
 ): AppAnalysis {
   const quality = analyzeDataQuality(steps);
   const validPoints = toValidPoints(steps);
   const curve = createCurvePoints(steps, validPoints);
   const thresholdPairs = calculateThresholdPairs(validPoints, quality);
   const selectedThresholds = selectConfiguredThresholdPair(thresholdPairs, validPoints, quality, thresholdControls);
-  const maxLactate = determineMaxLactate(validPoints, maxLactateTest);
+  const maxLactate = determineMaxLactate(
+    validPoints,
+    maxLactateTest,
+    maxHeartRateOverride,
+  );
   const zones = generateTrainingZones(selectedThresholds, validPoints, zoneCount, maxLactate);
   const targets = generateTargetPaces(selectedThresholds, validPoints, profile, raceTimes, maxLactate.value);
   const raceEstimates = estimateRacePerformances(selectedThresholds, validPoints, raceTimes, maxLactate.value);
@@ -40,7 +45,11 @@ export function analyzeTest(
   };
 }
 
-function determineMaxLactate(validPoints: AppAnalysis['validPoints'], maxLactateTest?: MaxLactateTest): AppAnalysis['maxLactate'] {
+function determineMaxLactate(
+  validPoints: AppAnalysis['validPoints'],
+  maxLactateTest?: MaxLactateTest,
+  maxHeartRateOverride?: number,
+): AppAnalysis['maxLactate'] {
   const allOutLactate = maxLactateTest?.lactate;
   const allOutSpeed = calculateSpeedFromDuration(
     maxLactateTest?.distanceMeters ? maxLactateTest.distanceMeters / 1000 : undefined,
@@ -49,10 +58,14 @@ function determineMaxLactate(validPoints: AppAnalysis['validPoints'], maxLactate
   const allOutHeartRate = isFiniteNumber(maxLactateTest?.heartRate) ? maxLactateTest.heartRate : undefined;
   const heartRateValues = validPoints.map((point) => point.heartRate).filter((value): value is number => isFiniteNumber(value));
   const highestRecordedHeartRate = heartRateValues.length ? Math.max(...heartRateValues) : undefined;
-  const maxHeartRate =
+  const derivedMaxHeartRate =
     allOutHeartRate !== undefined && highestRecordedHeartRate !== undefined
       ? Math.max(allOutHeartRate, highestRecordedHeartRate)
       : allOutHeartRate ?? highestRecordedHeartRate;
+  const maxHeartRate =
+    isFiniteNumber(maxHeartRateOverride) && maxHeartRateOverride >= 100
+      ? Math.round(maxHeartRateOverride)
+      : derivedMaxHeartRate;
   if (isFiniteNumber(allOutLactate)) {
     return {
       value: round(allOutLactate, 1),

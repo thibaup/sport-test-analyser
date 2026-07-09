@@ -190,8 +190,16 @@ function formatPaceRange(
 }
 
 function formatHeartRateRange(zone: TrainingZone, language: Language): string {
+  if (
+    zone.heartRateFrom !== undefined &&
+    zone.heartRateFrom === zone.heartRateTo
+  ) {
+    return `${zone.heartRateFrom} bpm`;
+  }
   if (zone.heartRateFrom !== undefined && zone.heartRateTo !== undefined)
     return `${zone.heartRateFrom}-${zone.heartRateTo} bpm`;
+  if (zone.shortName === "NMR" && zone.heartRateFrom !== undefined)
+    return `>= ${zone.heartRateFrom} bpm`;
   if (zone.heartRateFrom !== undefined) return `> ${zone.heartRateFrom} bpm`;
   if (zone.heartRateTo !== undefined) return `< ${zone.heartRateTo} bpm`;
   return t(language, "unavailable");

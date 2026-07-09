@@ -4,8 +4,9 @@ export const defaultAthleteInfo: AthleteInfo = {
   athleteName: '',
   testDate: '',
   coachName: '',
+  maxHeartRate: undefined,
   protocol: '',
-  notes: '',
+  coachRemarks: '',
 };
 
 export const defaultThresholdControls: ThresholdControls = {

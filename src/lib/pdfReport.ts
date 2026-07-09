@@ -112,7 +112,7 @@ const copy = {
     heartRate: "Heart rate",
     rpe: "RPE",
     discussion: "Discussion of results",
-    trainerRemarks: "Trainer remarks",
+    trainerRemarks: "Coach's remarks",
     thresholdValues: "Threshold values (based on the curve)",
     thresholdType: "Type",
     thresholdSpeed: "Speed (Pace)",
@@ -170,7 +170,7 @@ export async function buildPdfReport(input: PdfReportInput): Promise<jsPDF> {
   let y = drawHeader(doc, input, labels);
   y = drawProtocol(doc, input, labels, y + 2);
   y = drawTestResults(doc, input, labels, y + 5);
-  y = drawDiscussion(doc, labels, y + 5);
+  y = drawDiscussion(doc, input.athleteInfo.coachRemarks, labels, y + 5);
   y = drawThresholdValues(doc, input, labels, y + 5);
   y = drawZones(
     doc,
@@ -341,11 +341,18 @@ function drawTestResults(
 
 function drawDiscussion(
   doc: AutoTableDoc,
+  remarks: string,
   labels: Record<string, string>,
   y: number,
 ): number {
   y = sectionTitle(doc, labels.discussion, y);
-  y = ensureSpace(doc, y, 31);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const remarkLines = remarks.trim()
+    ? (doc.splitTextToSize(remarks.trim(), contentWidth - 6) as string[])
+    : [];
+  const remarksHeight = Math.max(22, remarkLines.length * 4.2 + 6);
+  y = ensureSpace(doc, y, remarksHeight + 9);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...blue);
@@ -353,8 +360,14 @@ function drawDiscussion(
   y += 3;
   doc.setDrawColor(...grid);
   doc.setFillColor(255, 255, 255);
-  doc.roundedRect(margin, y, contentWidth, 22, 1.5, 1.5, "S");
-  return y + 25;
+  doc.roundedRect(margin, y, contentWidth, remarksHeight, 1.5, 1.5, "S");
+  if (remarkLines.length > 0) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...black);
+    doc.text(remarkLines, margin + 3, y + 4);
+  }
+  return y + remarksHeight + 3;
 }
 
 function drawThresholdValues(

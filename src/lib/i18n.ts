@@ -25,12 +25,13 @@ type CopyKey =
   | "athlete"
   | "testDate"
   | "coach"
+  | "maxHeartRate"
   | "protocol"
-  | "notes"
+  | "coachRemarks"
   | "runnerName"
   | "coachOrLab"
   | "protocolPlaceholder"
-  | "notesPlaceholder"
+  | "coachRemarksPlaceholder"
   | "inputEyebrow"
   | "inputTitle"
   | "loadExample"
@@ -149,13 +150,14 @@ const copy: Record<Language, Record<CopyKey, string>> = {
     athlete: "Atleet",
     testDate: "Testdatum",
     coach: "Coach",
+    maxHeartRate: "Maximale hartslag",
     protocol: "Protocol",
-    notes: "Notities",
+    coachRemarks: "Opmerkingen van trainer",
     runnerName: "Naam loper",
     coachOrLab: "Coach of labo",
     protocolPlaceholder: "Stapduur, ondergrond, toestel",
-    notesPlaceholder:
-      "Omstandigheden, opwarming, schoenen, protocolopmerkingen",
+    coachRemarksPlaceholder:
+      "Observaties, aandachtspunten en vervolgafspraken",
     inputEyebrow: "Invoer",
     inputTitle: "Bewerkbare lactaattabel",
     loadExample: "Voorbeeld laden",
@@ -280,12 +282,13 @@ const copy: Record<Language, Record<CopyKey, string>> = {
     athlete: "Athlete",
     testDate: "Test date",
     coach: "Coach",
+    maxHeartRate: "Maximum heart rate",
     protocol: "Protocol",
-    notes: "Notes",
+    coachRemarks: "Coach's remarks",
     runnerName: "Runner name",
     coachOrLab: "Coach or lab",
     protocolPlaceholder: "Step duration, surface, device",
-    notesPlaceholder: "Conditions, warm-up, footwear, protocol remarks",
+    coachRemarksPlaceholder: "Observations, focus points, and next steps",
     inputEyebrow: "Input",
     inputTitle: "Editable lactate test table",
     loadExample: "Load example",

@@ -8,7 +8,7 @@ interface AthleteInfoFormProps {
 }
 
 export function AthleteInfoForm({ athleteInfo, onChange, language }: AthleteInfoFormProps) {
-  const update = (key: keyof AthleteInfo, value: string) => {
+  const update = <Key extends keyof AthleteInfo>(key: Key, value: AthleteInfo[Key]) => {
     onChange({ ...athleteInfo, [key]: value });
   };
 
@@ -49,6 +49,23 @@ export function AthleteInfoForm({ athleteInfo, onChange, language }: AthleteInfo
           />
         </label>
         <label className="field-label">
+          {t(language, 'maxHeartRate')}
+          <input
+            className="text-field"
+            type="number"
+            min="100"
+            max="240"
+            step="1"
+            value={athleteInfo.maxHeartRate ?? ''}
+            onChange={(event) =>
+              update(
+                'maxHeartRate',
+                event.target.value === '' ? undefined : Number(event.target.value),
+              )
+            }
+          />
+        </label>
+        <label className="field-label">
           {t(language, 'protocol')}
           <input
             className="text-field"
@@ -59,12 +76,12 @@ export function AthleteInfoForm({ athleteInfo, onChange, language }: AthleteInfo
         </label>
       </div>
       <label className="field-label mt-4">
-        {t(language, 'notes')}
+        {t(language, 'coachRemarks')}
         <textarea
           className="text-field min-h-20"
-          value={athleteInfo.notes}
-          onChange={(event) => update('notes', event.target.value)}
-          placeholder={t(language, 'notesPlaceholder')}
+          value={athleteInfo.coachRemarks}
+          onChange={(event) => update('coachRemarks', event.target.value)}
+          placeholder={t(language, 'coachRemarksPlaceholder')}
         />
       </label>
     </section>

@@ -80,8 +80,17 @@ function App() {
         raceTimes,
         maxLactateTest,
         zoneCount,
+        athleteInfo.maxHeartRate,
       ),
-    [steps, thresholdControls, profile, raceTimes, maxLactateTest, zoneCount],
+    [
+      steps,
+      thresholdControls,
+      profile,
+      raceTimes,
+      maxLactateTest,
+      zoneCount,
+      athleteInfo.maxHeartRate,
+    ],
   );
 
   return (
@@ -100,7 +109,7 @@ function App() {
           activeTab === "charts" ? "max-w-[96rem]" : "max-w-7xl"
         }`}
       >
-        <nav className="mb-5 grid grid-cols-4 gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm print:hidden sm:flex sm:overflow-x-auto">
+        <nav className="mx-auto mb-5 grid max-w-7xl grid-cols-4 gap-2 rounded-xl border border-slate-200 bg-white p-2 shadow-sm print:hidden sm:flex sm:overflow-x-auto">
           {tabs.map((tab) => {
             const Icon = tab.icon;
             return (
@@ -119,6 +128,11 @@ function App() {
 
         {activeTab === "input" && (
           <div className="space-y-5">
+            <AthleteInfoForm
+              athleteInfo={athleteInfo}
+              onChange={setAthleteInfo}
+              language={language}
+            />
             <TestInputTable
               steps={steps}
               onChange={setSteps}
@@ -138,11 +152,6 @@ function App() {
 
         {activeTab === "overview" && (
           <div className="space-y-5">
-            <AthleteInfoForm
-              athleteInfo={athleteInfo}
-              onChange={setAthleteInfo}
-              language={language}
-            />
             <SummaryCards
               analysis={analysis}
               paceUnit={paceUnit}
