@@ -281,6 +281,10 @@ describe('lactate analysis reference regressions', () => {
     expect(targetSpeed(analysis, 'race-resistance', 200)).toBeGreaterThan(
       targetSpeed(analysis, 'race-resistance', 600),
     );
+    expect(
+      targetSpeed(analysis, 'race-resistance', 200) /
+        targetSpeed(analysis, 'race-resistance', 500),
+    ).toBeGreaterThan(1.09);
   });
 
   it('defaults the app to baseline plus 0.4 LT1 and modified D-max LT2', () => {
