@@ -24,6 +24,7 @@ import {
   speedToPaceSecondsPerKm,
 } from "./conversions";
 import { localizeTarget, localizeZone, type Language } from "./i18n";
+import { sampleReferenceCurve } from "./referenceThresholds";
 
 interface PdfReportInput {
   athleteInfo: AthleteInfo;
@@ -86,6 +87,7 @@ const copy = {
     zoneGoal: "Doel van de training",
     targetTimes: "Richttijden",
     targetWindow: "Richttijd",
+    targetPace: "Doeltempo",
     recovery: "Pauze",
     volume: "Volume",
     raceTimes: "Wedstrijdtijden",
@@ -95,6 +97,7 @@ const copy = {
     method: "Methode",
     allOut: "All-out",
     generated: "Gegenereerd",
+    analysisChart: "Lactaat- en hartslagcurve",
   },
   en: {
     reportTitle: "Lactate test",
@@ -128,6 +131,7 @@ const copy = {
     zoneGoal: "Training goal",
     targetTimes: "Target times",
     targetWindow: "Target time",
+    targetPace: "Target pace",
     recovery: "Recovery",
     volume: "Volume",
     raceTimes: "Race times",
@@ -137,6 +141,7 @@ const copy = {
     method: "Method",
     allOut: "All-out",
     generated: "Generated",
+    analysisChart: "Lactate and heart-rate curve",
   },
 } satisfies Record<Language, Record<string, string>>;
 
@@ -170,6 +175,7 @@ export async function buildPdfReport(input: PdfReportInput): Promise<jsPDF> {
   let y = drawHeader(doc, input, labels);
   y = drawProtocol(doc, input, labels, y + 2);
   y = drawTestResults(doc, input, labels, y + 5);
+  y = drawAnalysisChart(doc, input, labels, y + 5);
   y = drawDiscussion(doc, input.athleteInfo.coachRemarks, labels, y + 5);
   y = drawThresholdValues(doc, input, labels, y + 5);
   y = drawZones(
@@ -186,6 +192,7 @@ export async function buildPdfReport(input: PdfReportInput): Promise<jsPDF> {
     ),
     labels,
     input.language,
+    input.paceUnit,
     y + 5,
   );
   y = drawRaceTimes(doc, input, labels, y + 5);
@@ -339,20 +346,241 @@ function drawTestResults(
   });
 }
 
+function drawAnalysisChart(
+  doc: jsPDF,
+  input: PdfReportInput,
+  labels: Record<string, string>,
+  y: number,
+): number {
+  const points = input.analysis.validPoints;
+  if (points.length < 2) return y;
+
+  y = ensureSpace(doc, y, 92);
+  y = sectionTitle(doc, labels.analysisChart, y);
+
+  const curve = sampleReferenceCurve(points, 160);
+  const heartRatePoints = points
+    .filter((point) => Number.isFinite(point.heartRate))
+    .map((point) => ({ x: point.speedKmh, y: point.heartRate as number }))
+    .sort((first, second) => first.x - second.x);
+  const speedValues = points.map((point) => point.speedKmh);
+  const lactateValues = [
+    ...points.map((point) => point.lactate),
+    ...curve.map((point) => point.smoothedLactate ?? 0),
+  ];
+  const speedMin = Math.min(...speedValues) - 0.5;
+  const speedMax = Math.max(...speedValues) + 0.5;
+  const lactateMax = Math.max(6, Math.ceil(Math.max(...lactateValues) + 1));
+  const heartRateMin = heartRatePoints.length
+    ? Math.floor((Math.min(...heartRatePoints.map((point) => point.y)) - 8) / 10) *
+      10
+    : 0;
+  const heartRateMax = heartRatePoints.length
+    ? Math.ceil((Math.max(...heartRatePoints.map((point) => point.y)) + 8) / 10) *
+      10
+    : 1;
+
+  const plotX = margin + 15;
+  const plotY = y + 8;
+  const plotWidth = contentWidth - 30;
+  const plotHeight = 58;
+  const x = (speed: number) =>
+    plotX + scaleChartValue(speed, speedMin, speedMax) * plotWidth;
+  const lactateY = (lactate: number) =>
+    plotY + plotHeight - scaleChartValue(lactate, 0, lactateMax) * plotHeight;
+  const heartRateY = (heartRate: number) =>
+    plotY +
+    plotHeight -
+    scaleChartValue(heartRate, heartRateMin, heartRateMax) * plotHeight;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.2);
+  doc.setTextColor(...black);
+  drawLegendItem(doc, plotX, y + 2, [2, 132, 199], labels.lactate);
+  if (heartRatePoints.length > 0) {
+    drawLegendItem(doc, plotX + 39, y + 2, [190, 18, 60], labels.heartRate);
+  }
+
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...grid);
+  doc.rect(plotX, plotY, plotWidth, plotHeight, "FD");
+
+  doc.setFontSize(6.5);
+  for (let index = 0; index <= 4; index += 1) {
+    const ratio = index / 4;
+    const gridX = plotX + ratio * plotWidth;
+    const gridY = plotY + ratio * plotHeight;
+    doc.setDrawColor(226, 232, 240);
+    doc.setLineWidth(0.2);
+    doc.line(gridX, plotY, gridX, plotY + plotHeight);
+    doc.line(plotX, gridY, plotX + plotWidth, gridY);
+
+    doc.setTextColor(...muted);
+    doc.text(
+      formatNumber(speedMin + ratio * (speedMax - speedMin), 1),
+      gridX,
+      plotY + plotHeight + 4,
+      { align: "center" },
+    );
+    doc.text(
+      formatNumber(lactateMax * (1 - ratio), 1),
+      plotX - 2,
+      gridY + 1,
+      { align: "right" },
+    );
+    if (heartRatePoints.length > 0) {
+      doc.text(
+        formatNumber(
+          heartRateMax - ratio * (heartRateMax - heartRateMin),
+          0,
+        ),
+        plotX + plotWidth + 2,
+        gridY + 1,
+      );
+    }
+  }
+
+  drawHorizontalReference(doc, plotX, plotWidth, lactateY(2), "2 mmol/L", [14, 165, 233]);
+  drawHorizontalReference(doc, plotX, plotWidth, lactateY(4), "4 mmol/L", [249, 115, 22]);
+
+  const aerobicSpeed = input.analysis.selectedThresholds.aerobic?.speedKmh;
+  const anaerobicSpeed = input.analysis.selectedThresholds.anaerobic?.speedKmh;
+  if (aerobicSpeed !== undefined) {
+    drawVerticalReference(doc, x(aerobicSpeed), plotY, plotHeight, "LT1", [8, 145, 178]);
+  }
+  if (anaerobicSpeed !== undefined) {
+    drawVerticalReference(doc, x(anaerobicSpeed), plotY, plotHeight, "LT2", [220, 38, 38]);
+  }
+
+  doc.setLineDashPattern([], 0);
+  doc.setDrawColor(2, 132, 199);
+  doc.setLineWidth(0.75);
+  drawChartLine(
+    doc,
+    curve.map((point) => ({
+      x: x(point.speedKmh),
+      y: lactateY(point.smoothedLactate ?? 0),
+    })),
+  );
+
+  if (heartRatePoints.length > 0) {
+    doc.setDrawColor(190, 18, 60);
+    doc.setLineWidth(0.65);
+    drawChartLine(
+      doc,
+      heartRatePoints.map((point) => ({ x: x(point.x), y: heartRateY(point.y) })),
+    );
+  }
+
+  points.forEach((point) => {
+    doc.setFillColor(2, 132, 199);
+    doc.circle(x(point.speedKmh), lactateY(point.lactate), 1.25, "F");
+    if (point.heartRate !== undefined) {
+      doc.setFillColor(190, 18, 60);
+      doc.circle(x(point.speedKmh), heartRateY(point.heartRate), 1.15, "F");
+    }
+  });
+
+  doc.setDrawColor(...grid);
+  doc.setLineWidth(0.3);
+  doc.rect(plotX, plotY, plotWidth, plotHeight, "S");
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.8);
+  doc.setTextColor(...muted);
+  doc.text("mmol/L", plotX, plotY - 2);
+  if (heartRatePoints.length > 0) {
+    doc.text("bpm", plotX + plotWidth, plotY - 2, { align: "right" });
+  }
+  doc.text(`${labels.speed} (km/h)`, plotX + plotWidth / 2, plotY + plotHeight + 8, {
+    align: "center",
+  });
+
+  return plotY + plotHeight + 10;
+}
+
+function drawLegendItem(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  color: Rgb,
+  label: string,
+): void {
+  doc.setDrawColor(...color);
+  doc.setLineWidth(0.8);
+  doc.line(x, y, x + 6, y);
+  doc.setTextColor(...black);
+  doc.text(label, x + 8, y + 1);
+}
+
+function drawHorizontalReference(
+  doc: jsPDF,
+  x: number,
+  width: number,
+  y: number,
+  label: string,
+  color: Rgb,
+): void {
+  doc.setDrawColor(...color);
+  doc.setLineWidth(0.3);
+  doc.setLineDashPattern([1.5, 1.2], 0);
+  doc.line(x, y, x + width, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(6);
+  doc.setTextColor(...color);
+  doc.text(label, x + width - 1, y - 1, { align: "right" });
+}
+
+function drawVerticalReference(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  height: number,
+  label: string,
+  color: Rgb,
+): void {
+  doc.setDrawColor(...color);
+  doc.setLineWidth(0.35);
+  doc.setLineDashPattern([1.2, 1], 0);
+  doc.line(x, y, x, y + height);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.3);
+  doc.setTextColor(...color);
+  doc.text(label, x + 1, y + 4);
+}
+
+function drawChartLine(
+  doc: jsPDF,
+  points: Array<{ x: number; y: number }>,
+): void {
+  for (let index = 1; index < points.length; index += 1) {
+    doc.line(
+      points[index - 1].x,
+      points[index - 1].y,
+      points[index].x,
+      points[index].y,
+    );
+  }
+}
+
+function scaleChartValue(value: number, min: number, max: number): number {
+  if (max <= min) return 0.5;
+  return Math.min(1, Math.max(0, (value - min) / (max - min)));
+}
+
 function drawDiscussion(
   doc: AutoTableDoc,
   remarks: string,
   labels: Record<string, string>,
   y: number,
 ): number {
-  y = sectionTitle(doc, labels.discussion, y);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   const remarkLines = remarks.trim()
     ? (doc.splitTextToSize(remarks.trim(), contentWidth - 6) as string[])
     : [];
   const remarksHeight = Math.max(22, remarkLines.length * 4.2 + 6);
-  y = ensureSpace(doc, y, remarksHeight + 9);
+  y = ensureSpace(doc, y, remarksHeight + 20);
+  y = sectionTitle(doc, labels.discussion, y);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);
   doc.setTextColor(...blue);
@@ -513,6 +741,7 @@ function drawTargets(
   targets: TargetPaceCategory[],
   labels: Record<string, string>,
   language: Language,
+  paceUnit: PaceUnit,
   y: number,
 ): number {
   if (targets.length === 0) return y;
@@ -530,6 +759,9 @@ function drawTargets(
     doc.setTextColor(...muted);
     doc.text(purpose, margin, y);
     y += purpose.length * 3.4 + 1;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.1);
+    doc.setTextColor(...black);
 
     y =
       table(doc, {
@@ -538,6 +770,7 @@ function drawTargets(
           [
             labels.distance,
             labels.targetWindow,
+            labels.targetPace,
             labels.recovery,
             labels.volume,
           ],
@@ -545,6 +778,7 @@ function drawTargets(
         body: target.times.map((time) => [
           `${time.distanceMeters}m`,
           `${formatDuration(time.timeFromSeconds)} - ${formatDuration(time.timeToSeconds)}`,
+          `${formatPace(time.paceFromSecondsPerKm, paceUnit)} - ${formatPace(time.paceToSecondsPerKm, paceUnit)}`,
           formatTargetRecovery(
             time.recoverySeconds,
             time.recoveryType,
@@ -552,12 +786,13 @@ function drawTargets(
           ),
           `${formatTargetRepetitions(time.repetitionsFrom, time.repetitionsTo, language)} / ${formatTargetVolume(time.totalVolumeMetersFrom, time.totalVolumeMetersTo)}`,
         ]),
-        styles: { fontSize: 7.5, cellPadding: 1.4 },
+        styles: { fontSize: 7.1, cellPadding: 1.35 },
         columnStyles: {
-          0: { halign: "center", cellWidth: 34 },
-          1: { halign: "center", cellWidth: 48 },
+          0: { halign: "center", cellWidth: 24 },
+          1: { halign: "center", cellWidth: 36 },
           2: { halign: "center", cellWidth: 43 },
-          3: { halign: "center", cellWidth: 53 },
+          3: { halign: "center", cellWidth: 35 },
+          4: { halign: "center", cellWidth: 40 },
         },
       }) + 3;
   });

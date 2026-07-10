@@ -25,7 +25,14 @@ import {
 } from "./data/exampleTest";
 import { analyzeTest } from "./lib/analysisEngine";
 import { t, type Language } from "./lib/i18n";
+import {
+  applyTimeOverrides,
+  createEmptyTimeOverrides,
+  updateRaceTimeOverride,
+  updateTargetOverride,
+} from "./lib/timeOverrides";
 import type {
+  AnalysisTimeOverrides,
   AthleteInfo,
   DistanceUnit,
   MaxLactateTest,
@@ -70,8 +77,11 @@ function App() {
   const [distanceUnit, setDistanceUnit] = useState<DistanceUnit>("km");
   const [activeTab, setActiveTab] = useState<TabId>("input");
   const [language, setLanguage] = useState<Language>("nl");
+  const [timeOverrides, setTimeOverrides] = useState<AnalysisTimeOverrides>(
+    createEmptyTimeOverrides,
+  );
 
-  const analysis = useMemo(
+  const calculatedAnalysis = useMemo(
     () =>
       analyzeTest(
         steps,
@@ -91,6 +101,11 @@ function App() {
       zoneCount,
       athleteInfo.maxHeartRate,
     ],
+  );
+
+  const analysis = useMemo(
+    () => applyTimeOverrides(calculatedAnalysis, timeOverrides),
+    [calculatedAnalysis, timeOverrides],
   );
 
   return (
@@ -183,6 +198,23 @@ function App() {
             analysis={analysis}
             paceUnit={paceUnit}
             language={language}
+            onValueChange={(targetId, distanceMeters, property, value) => {
+              const calculatedValue = calculatedAnalysis.targets
+                .find((target) => target.id === targetId)
+                ?.times.find(
+                  (time) => time.distanceMeters === distanceMeters,
+                )?.[property];
+              setTimeOverrides((current) =>
+                updateTargetOverride(
+                  current,
+                  targetId,
+                  distanceMeters,
+                  property,
+                  value,
+                  calculatedValue,
+                ),
+              );
+            }}
           />
         )}
         {activeTab === "race" && (
@@ -190,6 +222,19 @@ function App() {
             analysis={analysis}
             paceUnit={paceUnit}
             language={language}
+            onTimeChange={(distanceMeters, seconds) => {
+              const calculatedSeconds = calculatedAnalysis.raceEstimates.find(
+                (estimate) => estimate.distanceMeters === distanceMeters,
+              )?.estimatedTimeSeconds;
+              setTimeOverrides((current) =>
+                updateRaceTimeOverride(
+                  current,
+                  distanceMeters,
+                  seconds,
+                  calculatedSeconds,
+                ),
+              );
+            }}
           />
         )}
         {activeTab === "export" && (

@@ -1,14 +1,21 @@
-import { formatDuration, formatPace } from '../lib/conversions';
+import { formatPace } from '../lib/conversions';
 import { t, type Language } from '../lib/i18n';
 import type { AppAnalysis, PaceUnit } from '../types/lactate';
+import { EditableDuration } from './EditableDuration';
 
 interface RaceEstimatesProps {
   analysis: AppAnalysis;
   paceUnit: PaceUnit;
   language: Language;
+  onTimeChange: (distanceMeters: number, seconds: number | undefined) => void;
 }
 
-export function RaceEstimates({ analysis, paceUnit, language }: RaceEstimatesProps) {
+export function RaceEstimates({
+  analysis,
+  paceUnit,
+  language,
+  onTimeChange,
+}: RaceEstimatesProps) {
   const raceSource = analysis.raceEstimates[0]?.source;
   const hasBlendedEstimates = analysis.raceEstimates.some(
     (estimate) => estimate.source === 'blended',
@@ -40,7 +47,16 @@ export function RaceEstimates({ analysis, paceUnit, language }: RaceEstimatesPro
                     <p className="text-base font-semibold text-slate-950">{estimate.distanceLabel}</p>
                     <p className="mt-1 text-sm text-slate-600">{formatPace(estimate.estimatedPaceSecondsPerKm, paceUnit)}</p>
                   </div>
-                  <p className="text-right text-lg font-semibold text-slate-950">{formatDuration(estimate.estimatedTimeSeconds)}</p>
+                  <EditableDuration
+                    seconds={estimate.estimatedTimeSeconds}
+                    isCustom={estimate.timeOverridden}
+                    label={`${estimate.distanceLabel} ${t(language, 'estimatedTime')}`}
+                    language={language}
+                    testId={`race-time-mobile-${estimate.distanceMeters}`}
+                    onChange={(seconds) =>
+                      onTimeChange(estimate.distanceMeters, seconds)
+                    }
+                  />
                 </div>
               </article>
             ))}
@@ -59,7 +75,18 @@ export function RaceEstimates({ analysis, paceUnit, language }: RaceEstimatesPro
                 {analysis.raceEstimates.map((estimate) => (
                   <tr key={estimate.distanceLabel}>
                     <td className="font-semibold text-slate-950">{estimate.distanceLabel}</td>
-                    <td>{formatDuration(estimate.estimatedTimeSeconds)}</td>
+                    <td>
+                      <EditableDuration
+                        seconds={estimate.estimatedTimeSeconds}
+                        isCustom={estimate.timeOverridden}
+                        label={`${estimate.distanceLabel} ${t(language, 'estimatedTime')}`}
+                        language={language}
+                        testId={`race-time-desktop-${estimate.distanceMeters}`}
+                        onChange={(seconds) =>
+                          onTimeChange(estimate.distanceMeters, seconds)
+                        }
+                      />
+                    </td>
                     <td>{formatPace(estimate.estimatedPaceSecondsPerKm, paceUnit)}</td>
                   </tr>
                 ))}

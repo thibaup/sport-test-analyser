@@ -7,7 +7,20 @@ import {
   estimateRiegelPerformances,
   usableRaceTimes,
 } from '../src/lib/raceCalculations';
-import type { MaxLactateTest, RaceTime, TestStep, ThresholdControls, TrainingZone } from '../src/types/lactate';
+import {
+  applyTimeOverrides,
+  updateRaceTimeOverride,
+  updateTargetOverride,
+  updateTargetTimeOverride,
+} from '../src/lib/timeOverrides';
+import type {
+  AnalysisTimeOverrides,
+  MaxLactateTest,
+  RaceTime,
+  TestStep,
+  ThresholdControls,
+  TrainingZone,
+} from '../src/types/lactate';
 
 const thresholdControls: ThresholdControls = {
   aerobicMethod: 'fixed_2',
@@ -369,6 +382,162 @@ describe('lactate analysis reference regressions', () => {
     expect(analysis.selectedThresholds.anaerobic?.speedKmh).toBeDefined();
     expect(analysis.zones).toEqual([]);
     expect(analysis.targets).toEqual([]);
+  });
+
+  it('applies editable race and training times and recalculates their paces', () => {
+    const calculated = analyzeTest(
+      pdfReferenceSteps,
+      pdfReferenceThresholdControls,
+      'intermediate',
+    );
+    const target = calculated.targets.find((item) => item.id === 'threshold');
+    const targetTime = target?.times.find((item) => item.distanceMeters === 1000);
+    const race = calculated.raceEstimates.find(
+      (item) => item.distanceMeters === 5000,
+    );
+    expect(targetTime).toBeDefined();
+    expect(race).toBeDefined();
+
+    let overrides: AnalysisTimeOverrides = {
+      targetTimes: {},
+      raceEstimates: {},
+    };
+    overrides = updateTargetTimeOverride(
+      overrides,
+      'threshold',
+      1000,
+      'from',
+      225,
+    );
+    overrides = updateTargetTimeOverride(
+      overrides,
+      'threshold',
+      1000,
+      'to',
+      240,
+    );
+    overrides = updateTargetOverride(
+      overrides,
+      'threshold',
+      1000,
+      'repetitionsFrom',
+      5,
+    );
+    overrides = updateTargetOverride(
+      overrides,
+      'threshold',
+      1000,
+      'repetitionsTo',
+      6,
+    );
+    overrides = updateTargetOverride(
+      overrides,
+      'threshold',
+      1000,
+      'recoverySeconds',
+      75,
+    );
+    overrides = updateRaceTimeOverride(overrides, 5000, 1200);
+
+    const customized = applyTimeOverrides(calculated, overrides);
+    const customizedTarget = customized.targets
+      .find((item) => item.id === 'threshold')
+      ?.times.find((item) => item.distanceMeters === 1000);
+    const customizedRace = customized.raceEstimates.find(
+      (item) => item.distanceMeters === 5000,
+    );
+
+    expect(customizedTarget?.timeFromSeconds).toBe(225);
+    expect(customizedTarget?.timeToSeconds).toBe(240);
+    expect(customizedTarget?.paceFromSecondsPerKm).toBe(225);
+    expect(customizedTarget?.paceToSecondsPerKm).toBe(240);
+    expect(customizedTarget?.timeFromOverridden).toBe(true);
+    expect(customizedTarget?.timeToOverridden).toBe(true);
+    expect(customizedTarget?.repetitionsFrom).toBe(5);
+    expect(customizedTarget?.repetitionsTo).toBe(6);
+    expect(customizedTarget?.recoverySeconds).toBe(75);
+    expect(customizedTarget?.totalVolumeMetersFrom).toBe(5000);
+    expect(customizedTarget?.totalVolumeMetersTo).toBe(6000);
+    expect(customizedTarget?.repetitionsFromOverridden).toBe(true);
+    expect(customizedTarget?.repetitionsToOverridden).toBe(true);
+    expect(customizedTarget?.recoverySecondsOverridden).toBe(true);
+    expect(customizedRace?.estimatedTimeSeconds).toBe(1200);
+    expect(customizedRace?.estimatedPaceSecondsPerKm).toBe(240);
+    expect(customizedRace?.timeOverridden).toBe(true);
+  });
+
+  it('removes overrides when an edited value matches its calculated display value', () => {
+    const calculated = analyzeTest(
+      pdfReferenceSteps,
+      pdfReferenceThresholdControls,
+      'intermediate',
+    );
+    const targetTime = calculated.targets
+      .find((item) => item.id === 'threshold')
+      ?.times.find((item) => item.distanceMeters === 1000);
+    const race = calculated.raceEstimates.find(
+      (item) => item.distanceMeters === 5000,
+    );
+    expect(targetTime).toBeDefined();
+    expect(race).toBeDefined();
+
+    let overrides: AnalysisTimeOverrides = {
+      targetTimes: {},
+      raceEstimates: {},
+    };
+    overrides = updateTargetTimeOverride(
+      overrides,
+      'threshold',
+      1000,
+      'from',
+      Math.round(targetTime?.timeFromSeconds ?? 0),
+      targetTime?.timeFromSeconds,
+    );
+    overrides = updateTargetOverride(
+      overrides,
+      'threshold',
+      1000,
+      'repetitionsFrom',
+      targetTime?.repetitionsFrom,
+      targetTime?.repetitionsFrom,
+    );
+    overrides = updateTargetOverride(
+      overrides,
+      'threshold',
+      1000,
+      'recoverySeconds',
+      targetTime?.recoverySeconds,
+      targetTime?.recoverySeconds,
+    );
+    overrides = updateRaceTimeOverride(
+      overrides,
+      5000,
+      Math.round(race?.estimatedTimeSeconds ?? 0),
+      race?.estimatedTimeSeconds,
+    );
+
+    expect(overrides.targetTimes).toEqual({});
+    expect(overrides.raceEstimates).toEqual({});
+
+    const staleEqualOverrides: AnalysisTimeOverrides = {
+      targetTimes: {
+        'threshold:1000': {
+          repetitionsFrom: targetTime?.repetitionsFrom,
+        },
+      },
+      raceEstimates: {
+        '5000': Math.round(race?.estimatedTimeSeconds ?? 0),
+      },
+    };
+    const resolved = applyTimeOverrides(calculated, staleEqualOverrides);
+    const resolvedTarget = resolved.targets
+      .find((item) => item.id === 'threshold')
+      ?.times.find((item) => item.distanceMeters === 1000);
+    const resolvedRace = resolved.raceEstimates.find(
+      (item) => item.distanceMeters === 5000,
+    );
+    expect(resolvedTarget?.repetitionsFromOverridden).toBeUndefined();
+    expect(resolvedRace?.timeOverridden).toBeUndefined();
   });
 });
 

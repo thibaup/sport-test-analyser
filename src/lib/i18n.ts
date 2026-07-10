@@ -91,9 +91,7 @@ type CopyKey =
   | "targetsEyebrow"
   | "targetsTitle"
   | "targetsNeedData"
-  | "speedRange"
   | "paceRange"
-  | "targetSpeed"
   | "targetPace"
   | "recovery"
   | "repetitions"
@@ -109,6 +107,7 @@ type CopyKey =
   | "estimatedTime"
   | "estimatedPace"
   | "method"
+  | "resetCalculatedValue"
   | "raceTimesEyebrow"
   | "raceTimesTitle"
   | "addRaceTime"
@@ -221,9 +220,7 @@ const copy: Record<Language, Record<CopyKey, string>> = {
     targetsTitle: "Berekende intervaltargets per afstand",
     targetsNeedData:
       "Richttempo’s hebben duidelijke drempels en minstens vier testpunten nodig.",
-    speedRange: "Snelheidsrange",
     paceRange: "Temporange",
-    targetSpeed: "Doelsnelheid",
     targetPace: "Doeltempo",
     recovery: "Herstel",
     repetitions: "Herhalingen",
@@ -242,6 +239,7 @@ const copy: Record<Language, Record<CopyKey, string>> = {
     estimatedTime: "Geschatte tijd",
     estimatedPace: "Geschat tempo",
     method: "Methode",
+    resetCalculatedValue: "Herstel berekende waarde",
     raceTimesEyebrow: "Wedstrijd",
     raceTimesTitle:
       "Wedstrijdtijden voor voorspellingen en wedstrijdspecifieke intervallen",
@@ -354,9 +352,7 @@ const copy: Record<Language, Record<CopyKey, string>> = {
     targetsTitle: "Calculated interval targets by distance",
     targetsNeedData:
       "Target times need clear threshold estimates and at least four test points.",
-    speedRange: "Speed range",
     paceRange: "Pace range",
-    targetSpeed: "Target speed",
     targetPace: "Target pace",
     recovery: "Recovery",
     repetitions: "Repetitions",
@@ -375,6 +371,7 @@ const copy: Record<Language, Record<CopyKey, string>> = {
     estimatedTime: "Estimated time",
     estimatedPace: "Estimated pace",
     method: "Method",
+    resetCalculatedValue: "Restore calculated value",
     raceTimesEyebrow: "Race",
     raceTimesTitle: "Race times for predictions and race-specific intervals",
     addRaceTime: "Add race time",

@@ -1,28 +1,36 @@
 import { useMemo, useState } from "react";
-import {
-  formatDuration,
-  formatPace,
-  formatRange,
-  round,
-} from "../lib/conversions";
+import { formatPace, round } from "../lib/conversions";
 import { localizeTarget, t, type Language } from "../lib/i18n";
 import type {
   AppAnalysis,
   PaceUnit,
+  TargetDistanceTime,
   TargetPaceCategory,
   TargetRecoveryType,
+  TargetTimeOverride,
 } from "../types/lactate";
+import { EditableDuration } from "./EditableDuration";
+import { EditableNumber } from "./EditableNumber";
+
+type TargetEditHandler = (
+  targetId: string,
+  distanceMeters: number,
+  property: keyof TargetTimeOverride,
+  value: number | undefined,
+) => void;
 
 interface TargetPacesProps {
   analysis: AppAnalysis;
   paceUnit: PaceUnit;
   language: Language;
+  onValueChange: TargetEditHandler;
 }
 
 export function TargetPaces({
   analysis,
   paceUnit,
   language,
+  onValueChange,
 }: TargetPacesProps) {
   const [activeId, setActiveId] = useState<string>("");
   const categories = analysis.targets.map((target) =>
@@ -72,7 +80,6 @@ export function TargetPaces({
           </button>
         ))}
       </div>
-
       <div className="mt-5 grid gap-4 lg:grid-cols-[0.85fr_1.8fr]">
         <article className="rounded-xl border border-slate-200 bg-slate-50 p-5">
           <h3 className="text-lg font-semibold text-slate-950">
@@ -82,17 +89,6 @@ export function TargetPaces({
             {active.purpose}
           </p>
           <dl className="mt-5 grid gap-4">
-            <div>
-              <dt className="zone-label">{t(language, "speedRange")}</dt>
-              <dd className="zone-value">
-                {formatRange(
-                  active.speedFromKmh,
-                  active.speedToKmh,
-                  " km/h",
-                  1,
-                )}
-              </dd>
-            </div>
             <div>
               <dt className="zone-label">{t(language, "paceRange")}</dt>
               <dd className="zone-value">
@@ -109,36 +105,47 @@ export function TargetPaces({
               key={time.distanceMeters}
               className="rounded-xl border border-slate-200 bg-white p-4"
             >
-              <div className="flex items-start justify-between gap-3">
+              <div>
                 <div>
                   <p className="text-base font-semibold text-slate-950">
                     {time.distanceMeters} m
                   </p>
-                  <p className="mt-1 text-sm font-medium text-slate-600">
-                    {formatDuration(time.timeFromSeconds)} -{" "}
-                    {formatDuration(time.timeToSeconds)}
-                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5 text-slate-400">
+                    <EditableDuration
+                      seconds={time.timeFromSeconds}
+                      isCustom={time.timeFromOverridden}
+                      label={`${active.name} ${time.distanceMeters} m ${t(language, "fastEnd")}`}
+                      language={language}
+                      testId={`target-time-mobile-${active.id}-${time.distanceMeters}-from`}
+                      onChange={(seconds) =>
+                        onValueChange(
+                          active.id,
+                          time.distanceMeters,
+                          "timeFromSeconds",
+                          seconds,
+                        )
+                      }
+                    />
+                    <span aria-hidden="true">-</span>
+                    <EditableDuration
+                      seconds={time.timeToSeconds}
+                      isCustom={time.timeToOverridden}
+                      label={`${active.name} ${time.distanceMeters} m ${t(language, "controlledEnd")}`}
+                      language={language}
+                      testId={`target-time-mobile-${active.id}-${time.distanceMeters}-to`}
+                      onChange={(seconds) =>
+                        onValueChange(
+                          active.id,
+                          time.distanceMeters,
+                          "timeToSeconds",
+                          seconds,
+                        )
+                      }
+                    />
+                  </div>
                 </div>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
-                  {formatRepetitions(
-                    time.repetitionsFrom,
-                    time.repetitionsTo,
-                    language,
-                  )}
-                </span>
               </div>
               <dl className="mt-4 grid grid-cols-2 gap-3">
-                <div>
-                  <dt className="zone-label">{t(language, "targetSpeed")}</dt>
-                  <dd className="zone-value">
-                    {formatRange(
-                      time.speedFromKmh,
-                      time.speedToKmh,
-                      " km/h",
-                      1,
-                    )}
-                  </dd>
-                </div>
                 <div>
                   <dt className="zone-label">{t(language, "targetPace")}</dt>
                   <dd className="zone-value">
@@ -147,13 +154,29 @@ export function TargetPaces({
                   </dd>
                 </div>
                 <div>
+                  <dt className="zone-label">{t(language, "repetitions")}</dt>
+                  <dd className="zone-value">
+                    <EditableRepetitions
+                      targetId={active.id}
+                      targetName={active.name}
+                      time={time}
+                      language={language}
+                      context="mobile"
+                      onChange={onValueChange}
+                    />
+                  </dd>
+                </div>
+                <div>
                   <dt className="zone-label">{t(language, "recovery")}</dt>
                   <dd className="zone-value">
-                    {formatRecovery(
-                      time.recoverySeconds,
-                      time.recoveryType,
-                      language,
-                    )}
+                    <EditableRecovery
+                      targetId={active.id}
+                      targetName={active.name}
+                      time={time}
+                      language={language}
+                      context="mobile"
+                      onChange={onValueChange}
+                    />
                   </dd>
                 </div>
                 <div>
@@ -175,12 +198,11 @@ export function TargetPaces({
         </div>
 
         <div className="hidden overflow-x-auto rounded-xl border border-slate-200 md:block">
-          <table className="data-table min-w-[1080px] border-0">
+          <table className="data-table min-w-[940px] border-0">
             <thead>
               <tr>
                 <th>{t(language, "distance")}</th>
                 <th>{t(language, "targetWindow")}</th>
-                <th>{t(language, "targetSpeed")}</th>
                 <th>{t(language, "targetPace")}</th>
                 <th>{t(language, "repetitions")}</th>
                 <th>{t(language, "recovery")}</th>
@@ -195,34 +217,63 @@ export function TargetPaces({
                     {time.distanceMeters} m
                   </td>
                   <td className="whitespace-nowrap">
-                    {formatDuration(time.timeFromSeconds)} -{" "}
-                    {formatDuration(time.timeToSeconds)}
-                  </td>
-                  <td className="whitespace-nowrap">
-                    {formatRange(
-                      time.speedFromKmh,
-                      time.speedToKmh,
-                      " km/h",
-                      1,
-                    )}
+                    <span className="inline-flex items-center gap-1.5 text-slate-400">
+                      <EditableDuration
+                        seconds={time.timeFromSeconds}
+                        isCustom={time.timeFromOverridden}
+                        label={`${active.name} ${time.distanceMeters} m ${t(language, "fastEnd")}`}
+                        language={language}
+                        testId={`target-time-desktop-${active.id}-${time.distanceMeters}-from`}
+                        onChange={(seconds) =>
+                          onValueChange(
+                            active.id,
+                            time.distanceMeters,
+                            "timeFromSeconds",
+                            seconds,
+                          )
+                        }
+                      />
+                      <span aria-hidden="true">-</span>
+                      <EditableDuration
+                        seconds={time.timeToSeconds}
+                        isCustom={time.timeToOverridden}
+                        label={`${active.name} ${time.distanceMeters} m ${t(language, "controlledEnd")}`}
+                        language={language}
+                        testId={`target-time-desktop-${active.id}-${time.distanceMeters}-to`}
+                        onChange={(seconds) =>
+                          onValueChange(
+                            active.id,
+                            time.distanceMeters,
+                            "timeToSeconds",
+                            seconds,
+                          )
+                        }
+                      />
+                    </span>
                   </td>
                   <td className="whitespace-nowrap">
                     {formatPace(time.paceFromSecondsPerKm, paceUnit)} -{" "}
                     {formatPace(time.paceToSecondsPerKm, paceUnit)}
                   </td>
                   <td className="whitespace-nowrap">
-                    {formatRepetitions(
-                      time.repetitionsFrom,
-                      time.repetitionsTo,
-                      language,
-                    )}
+                    <EditableRepetitions
+                      targetId={active.id}
+                      targetName={active.name}
+                      time={time}
+                      language={language}
+                      context="desktop"
+                      onChange={onValueChange}
+                    />
                   </td>
                   <td className="whitespace-nowrap">
-                    {formatRecovery(
-                      time.recoverySeconds,
-                      time.recoveryType,
-                      language,
-                    )}
+                    <EditableRecovery
+                      targetId={active.id}
+                      targetName={active.name}
+                      time={time}
+                      language={language}
+                      context="desktop"
+                      onChange={onValueChange}
+                    />
                   </td>
                   <td className="whitespace-nowrap">
                     {formatVolume(
@@ -244,22 +295,88 @@ export function TargetPaces({
   );
 }
 
-function formatRepetitions(
-  from: number,
-  to: number,
-  language: Language,
-): string {
-  const noun = language === "nl" ? "herh." : "reps";
-  return from === to ? `${from} ${noun}` : `${from}-${to} ${noun}`;
+interface EditableTargetValueProps {
+  targetId: string;
+  targetName: string;
+  time: TargetDistanceTime;
+  language: Language;
+  context: "mobile" | "desktop";
+  onChange: TargetEditHandler;
 }
 
-function formatRecovery(
-  seconds: number,
-  type: TargetRecoveryType,
-  language: Language,
-): string {
-  const label = recoveryTypeLabel(type, language);
-  return `${formatDuration(seconds)} ${label}`;
+function EditableRepetitions({
+  targetId,
+  targetName,
+  time,
+  language,
+  context,
+  onChange,
+}: EditableTargetValueProps) {
+  const noun = language === "nl" ? "herh." : "reps";
+  return (
+    <span className="inline-flex items-center gap-1 text-slate-400">
+      <EditableNumber
+        value={time.repetitionsFrom}
+        isCustom={time.repetitionsFromOverridden}
+        label={`${targetName} ${time.distanceMeters} m ${t(language, "repetitions")} min`}
+        language={language}
+        testId={`target-repetitions-${context}-${targetId}-${time.distanceMeters}-from`}
+        maxValue={time.repetitionsTo}
+        onChange={(value) =>
+          onChange(
+            targetId,
+            time.distanceMeters,
+            "repetitionsFrom",
+            value,
+          )
+        }
+      />
+      <span aria-hidden="true">-</span>
+      <EditableNumber
+        value={time.repetitionsTo}
+        isCustom={time.repetitionsToOverridden}
+        label={`${targetName} ${time.distanceMeters} m ${t(language, "repetitions")} max`}
+        language={language}
+        testId={`target-repetitions-${context}-${targetId}-${time.distanceMeters}-to`}
+        minValue={time.repetitionsFrom}
+        onChange={(value) =>
+          onChange(
+            targetId,
+            time.distanceMeters,
+            "repetitionsTo",
+            value,
+          )
+        }
+      />
+      <span className="font-semibold text-slate-700">{noun}</span>
+    </span>
+  );
+}
+
+function EditableRecovery({
+  targetId,
+  targetName,
+  time,
+  language,
+  context,
+  onChange,
+}: EditableTargetValueProps) {
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <EditableDuration
+        seconds={time.recoverySeconds}
+        isCustom={time.recoverySecondsOverridden}
+        label={`${targetName} ${time.distanceMeters} m ${t(language, "recovery")}`}
+        language={language}
+        testId={`target-recovery-${context}-${targetId}-${time.distanceMeters}`}
+        allowZero
+        onChange={(value) =>
+          onChange(targetId, time.distanceMeters, "recoverySeconds", value)
+        }
+      />
+      <span>{recoveryTypeLabel(time.recoveryType, language)}</span>
+    </span>
+  );
 }
 
 function formatVolume(

@@ -181,6 +181,11 @@ export interface TargetDistanceTime {
   totalVolumeMetersTo: number;
   explanation: string;
   formula: string;
+  timeFromOverridden?: boolean;
+  timeToOverridden?: boolean;
+  repetitionsFromOverridden?: boolean;
+  repetitionsToOverridden?: boolean;
+  recoverySecondsOverridden?: boolean;
 }
 
 export interface TargetPaceCategory {
@@ -208,6 +213,20 @@ export interface RaceEstimate {
   source: 'raceTime' | 'lactate' | 'blended';
   inputCount?: number;
   confidenceLabel: ConfidenceLabel;
+  timeOverridden?: boolean;
+}
+
+export interface TargetTimeOverride {
+  timeFromSeconds?: number;
+  timeToSeconds?: number;
+  repetitionsFrom?: number;
+  repetitionsTo?: number;
+  recoverySeconds?: number;
+}
+
+export interface AnalysisTimeOverrides {
+  targetTimes: Record<string, TargetTimeOverride>;
+  raceEstimates: Record<string, number>;
 }
 
 export interface MaxLactateResult {
