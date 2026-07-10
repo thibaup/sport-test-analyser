@@ -148,10 +148,55 @@ function estimatePair(
   manualAnaerobicSpeedKmh?: number,
   pairId: ThresholdMethodId = 'selected',
 ): ThresholdPair {
-  const aerobicReference = calculateReferenceLt1(points, aerobicMethod, manualAerobicSpeedKmh);
-  const aerobic = makeEstimate(points, quality, 'aerobic', aerobicMethod, aerobicReference);
-  const anaerobicReference = calculateReferenceLt2(points, anaerobicMethod, aerobicReference, manualAnaerobicSpeedKmh);
-  const anaerobic = makeEstimate(points, quality, 'anaerobic', anaerobicMethod, anaerobicReference);
+  let aerobicValidationError = validateManualThresholdSpeed(
+    points,
+    aerobicMethod,
+    manualAerobicSpeedKmh,
+    'LT1',
+  );
+  let anaerobicValidationError = validateManualThresholdSpeed(
+    points,
+    anaerobicMethod,
+    manualAnaerobicSpeedKmh,
+    'LT2',
+  );
+  let aerobicReference = aerobicValidationError
+    ? undefined
+    : calculateReferenceLt1(points, aerobicMethod, manualAerobicSpeedKmh);
+  let anaerobicReference = anaerobicValidationError
+    ? undefined
+    : calculateReferenceLt2(points, anaerobicMethod, aerobicReference, manualAnaerobicSpeedKmh);
+
+  if (
+    aerobicReference &&
+    anaerobicReference &&
+    anaerobicReference.intensity <= aerobicReference.intensity
+  ) {
+    if (anaerobicMethod === 'manual_lt2') {
+      anaerobicReference = undefined;
+      anaerobicValidationError = 'Manual LT2 must be faster than LT1.';
+    } else if (aerobicMethod === 'manual_lt1') {
+      aerobicReference = undefined;
+      aerobicValidationError = 'Manual LT1 must be slower than LT2.';
+    }
+  }
+
+  const aerobic = makeEstimate(
+    points,
+    quality,
+    'aerobic',
+    aerobicMethod,
+    aerobicReference,
+    aerobicValidationError,
+  );
+  const anaerobic = makeEstimate(
+    points,
+    quality,
+    'anaerobic',
+    anaerobicMethod,
+    anaerobicReference,
+    anaerobicValidationError,
+  );
 
   return makePair(
     pairId,
@@ -169,6 +214,7 @@ function makeEstimate(
   type: ThresholdType,
   methodId: Lt1MethodId | Lt2MethodId,
   threshold?: ReferenceThreshold,
+  validationError?: string,
 ): ThresholdEstimate {
   const speedKmh = threshold?.intensity;
   const confidence = speedKmh ? calculateConfidence(points, quality) : 0;
@@ -185,8 +231,29 @@ function makeEstimate(
     confidenceLabel: confidenceLabel(confidence),
     explanation: referenceExplanation(methodId),
     formula: referenceFormula(methodId),
-    insufficientReason: speedKmh ? undefined : insufficientReason(methodId),
+    insufficientReason: speedKmh ? undefined : validationError ?? insufficientReason(methodId),
   };
+}
+
+function validateManualThresholdSpeed(
+  points: ValidTestPoint[],
+  methodId: Lt1MethodId | Lt2MethodId,
+  manualSpeedKmh: number | undefined,
+  label: 'LT1' | 'LT2',
+): string | undefined {
+  const isManual = methodId === 'manual_lt1' || methodId === 'manual_lt2';
+  if (!isManual || manualSpeedKmh == null || !Number.isFinite(manualSpeedKmh) || points.length === 0) {
+    return undefined;
+  }
+
+  const speeds = points.map((point) => point.speedKmh);
+  const minTestedSpeed = Math.min(...speeds);
+  const maxTestedSpeed = Math.max(...speeds);
+  if (manualSpeedKmh < minTestedSpeed || manualSpeedKmh > maxTestedSpeed) {
+    return `Manual ${label} must be within the tested speed range (${round(minTestedSpeed, 2)}-${round(maxTestedSpeed, 2)} km/h).`;
+  }
+
+  return undefined;
 }
 
 function makePair(

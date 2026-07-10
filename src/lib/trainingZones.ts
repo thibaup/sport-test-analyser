@@ -31,11 +31,8 @@ export function generateTrainingZones(
   zoneCount: ZoneCount,
   maxValues?: MaxLactateResult,
 ): TrainingZone[] {
-  let lt1 = thresholds.aerobic?.speedKmh;
-  let lt2 = thresholds.anaerobic?.speedKmh;
-  if (lt1 == null && lt2 == null) return [];
-  if (lt1 == null && lt2 != null) lt1 = 0.85 * lt2;
-  if (lt2 == null && lt1 != null) lt2 = 1.18 * lt1;
+  const lt1 = thresholds.aerobic?.speedKmh;
+  const lt2 = thresholds.anaerobic?.speedKmh;
   if (lt1 == null || lt2 == null || lt2 <= lt1) return [];
 
   const context: ZoneContext = {

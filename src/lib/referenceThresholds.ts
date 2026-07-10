@@ -152,6 +152,16 @@ function manualThreshold(
   manualSpeed?: number,
 ): ReferenceThreshold | undefined {
   if (manualSpeed == null || !Number.isFinite(manualSpeed)) return undefined;
+  const minTestedSpeed = dataPoints[0]?.intensity;
+  const maxTestedSpeed = dataPoints[dataPoints.length - 1]?.intensity;
+  if (
+    minTestedSpeed == null ||
+    maxTestedSpeed == null ||
+    manualSpeed < minTestedSpeed ||
+    manualSpeed > maxTestedSpeed
+  ) {
+    throw new Error('Manual threshold speed must be within the tested speed range');
+  }
   return {
     intensity: Math.round(100 * manualSpeed) / 100,
     lactate: Math.round(100 * Math.max(0, curve.evaluate(manualSpeed))) / 100,

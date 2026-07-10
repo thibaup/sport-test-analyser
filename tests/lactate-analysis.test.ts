@@ -292,6 +292,84 @@ describe('lactate analysis reference regressions', () => {
     expect(defaultThresholdControls.anaerobicMethod).toBe('dmax_modified');
     expect(lt2MethodOptions).toEqual(['dmax_modified', 'manual_lt2']);
   });
+
+  it('accepts valid manual thresholds inside the tested range', () => {
+    const analysis = analyzeTest(
+      pdfReferenceSteps,
+      manualThresholdControls(14.4, 15.65),
+      'intermediate',
+      [],
+      undefined,
+      7,
+      205,
+    );
+
+    expect(analysis.selectedThresholds.aerobic?.speedKmh).toBe(14.4);
+    expect(analysis.selectedThresholds.anaerobic?.speedKmh).toBe(15.65);
+    expect(analysis.zones).toHaveLength(7);
+    expect(analysis.targets.length).toBeGreaterThan(0);
+  });
+
+  it('rejects manual thresholds outside the tested speed range', () => {
+    const belowRange = analyzeTest(
+      pdfReferenceSteps,
+      manualThresholdControls(9, 15.65),
+      'intermediate',
+    );
+    const aboveRange = analyzeTest(
+      pdfReferenceSteps,
+      manualThresholdControls(14.4, 19),
+      'intermediate',
+    );
+
+    expect(belowRange.selectedThresholds.aerobic?.speedKmh).toBeUndefined();
+    expect(belowRange.selectedThresholds.aerobic?.insufficientReason).toContain('tested speed range');
+    expect(belowRange.zones).toEqual([]);
+    expect(belowRange.targets).toEqual([]);
+
+    expect(aboveRange.selectedThresholds.anaerobic?.speedKmh).toBeUndefined();
+    expect(aboveRange.selectedThresholds.anaerobic?.insufficientReason).toContain('tested speed range');
+    expect(aboveRange.zones).toEqual([]);
+    expect(aboveRange.targets).toEqual([]);
+  });
+
+  it('rejects manual LT2 when it is not faster than LT1', () => {
+    const analysis = analyzeTest(
+      pdfReferenceSteps,
+      manualThresholdControls(15.65, 14.4),
+      'intermediate',
+    );
+
+    expect(analysis.selectedThresholds.aerobic?.speedKmh).toBe(15.65);
+    expect(analysis.selectedThresholds.anaerobic?.speedKmh).toBeUndefined();
+    expect(analysis.selectedThresholds.anaerobic?.insufficientReason).toBe('Manual LT2 must be faster than LT1.');
+    expect(analysis.zones).toEqual([]);
+    expect(analysis.targets).toEqual([]);
+  });
+
+  it('does not generate zones when either threshold is unavailable', () => {
+    const flatSteps: TestStep[] = [
+      stagedStep(1, 9, 400, 1.4, 120),
+      stagedStep(2, 10, 400, 1.5, 132),
+      stagedStep(3, 11, 400, 1.4, 143),
+      stagedStep(4, 12, 400, 1.6, 153),
+      stagedStep(5, 13, 400, 1.5, 163),
+      stagedStep(6, 14, 400, 1.7, 174),
+    ];
+    const analysis = analyzeTest(
+      flatSteps,
+      defaultThresholdControls,
+      'intermediate',
+      [],
+      undefined,
+      7,
+    );
+
+    expect(analysis.selectedThresholds.aerobic?.speedKmh).toBeUndefined();
+    expect(analysis.selectedThresholds.anaerobic?.speedKmh).toBeDefined();
+    expect(analysis.zones).toEqual([]);
+    expect(analysis.targets).toEqual([]);
+  });
 });
 
 function stagedStep(step: number, speedKmh: number, durationSeconds: number, lactate: number, heartRate: number): TestStep {
@@ -308,6 +386,16 @@ function stagedStep(step: number, speedKmh: number, durationSeconds: number, lac
 
 function raceTime(id: string, distanceMeters: number, timeSeconds: number): RaceTime {
   return { id, distanceMeters, timeSeconds };
+}
+
+function manualThresholdControls(lt1: number, lt2: number): ThresholdControls {
+  return {
+    aerobicMethod: 'manual_lt1',
+    anaerobicMethod: 'manual_lt2',
+    manualAerobicSpeedKmh: lt1,
+    manualAnaerobicSpeedKmh: lt2,
+    manualTarget: 'aerobic',
+  };
 }
 
 function targetSpeed(
