@@ -237,12 +237,12 @@ function standardZoneDetails(shortName: string, zone: number): Pick<TrainingZone
       intensity: 'Moderate',
     },
     SST: {
-      name: `Zone ${zone} - Sweet spot`,
+      name: `Zone ${zone} - Sub-threshold`,
       purpose: 'Strong steady aerobic work in the upper LT1-LT2 range.',
       intensity: 'Steady hard',
     },
     THR: {
-      name: `Zone ${zone} - Threshold`,
+      name: `Zone ${zone} - Above threshold`,
       purpose: 'Work around LT2 and just above it.',
       intensity: 'Hard',
     },

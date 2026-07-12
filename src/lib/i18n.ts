@@ -453,12 +453,12 @@ const zoneCopy: Record<
       intensity: "Matig",
     },
     SST: {
-      name: "Sweet spot",
+      name: "Subdrempel",
       purpose: "Sterk steady aeroob werk in de bovenste LT1-LT2-zone.",
       intensity: "Stevig",
     },
     THR: {
-      name: "Drempel",
+      name: "Bovendrempel",
       purpose: "Werk rond LT2 en net erboven.",
       intensity: "Hard",
     },
@@ -502,12 +502,12 @@ const zoneCopy: Record<
       intensity: "Matig tot stevig",
     },
     "sub-threshold": {
-      name: "Net onder drempel",
+      name: "Subdrempel",
       purpose: "Lactaatverwerking verbeteren net onder de tweede drempel.",
       intensity: "Gecontroleerd hard",
     },
     threshold: {
-      name: "Zone 4 - Drempel",
+      name: "Bovendrempel",
       purpose:
         "Duurzame hoge aerobe output rond de tweede drempel ontwikkelen.",
       intensity: "Hard maar herhaalbaar",

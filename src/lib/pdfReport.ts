@@ -712,19 +712,19 @@ function drawZones(
       ],
     ],
     body: zones.map((zone) => [
-      zone.shortName || zone.name,
+      zone.name,
       formatZoneSpeed(zone),
       formatZonePace(zone, paceUnit),
       formatZoneHeartRate(zone, labels.noValue),
       zone.purpose,
     ]),
-    styles: { fontSize: 7.8, cellPadding: 1.7 },
+    styles: { fontSize: 7.5, cellPadding: 1.6 },
     columnStyles: {
-      0: { cellWidth: 32, fontStyle: "bold" },
-      1: { halign: "center", cellWidth: 29 },
-      2: { halign: "center", cellWidth: 34 },
-      3: { halign: "center", cellWidth: 31 },
-      4: { cellWidth: 52 },
+      0: { cellWidth: 44, fontStyle: "bold" },
+      1: { halign: "center", cellWidth: 27 },
+      2: { halign: "center", cellWidth: 32 },
+      3: { halign: "center", cellWidth: 27 },
+      4: { cellWidth: 48 },
     },
     didParseCell(data) {
       if (data.section === "body" && data.column.index === 0) {

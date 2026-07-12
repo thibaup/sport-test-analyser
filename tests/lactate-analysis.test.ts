@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { defaultThresholdControls } from '../src/data/exampleTest';
+import { localizeZone } from '../src/lib/i18n';
 import { lt2MethodOptions } from '../src/lib/lactateThresholds';
 import { analyzeTest } from '../src/lib/analysisEngine';
 import {
@@ -131,6 +132,10 @@ describe('lactate analysis reference regressions', () => {
     expectZone(analysis.zones[4], 'THR', 15.8, 16.3, 196, 199);
     expectZone(analysis.zones[5], 'VO2', 16.3, 19.0, 198, 198);
     expectZone(analysis.zones[6], 'NMR', 19.0, undefined, 198, undefined);
+    expect(analysis.zones[3].name).toContain('Sub-threshold');
+    expect(analysis.zones[4].name).toContain('Above threshold');
+    expect(localizeZone(analysis.zones[3], 'nl').name).toContain('Subdrempel');
+    expect(localizeZone(analysis.zones[4], 'nl').name).toContain('Bovendrempel');
   });
 
   it('uses a manually supplied maximum HR without changing valid zone boundaries', () => {
