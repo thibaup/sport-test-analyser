@@ -404,10 +404,10 @@ function drawAnalysisChart(
   doc.setTextColor(...muted);
   doc.text(labels.zoneRangeSummary, margin, y);
 
-  const plotX = margin + 25;
+  const plotX = margin + 12;
   const plotY = y + 13;
   const plotWidth = pageWidth - margin - plotX - 4;
-  const plotHeight = 158;
+  const plotHeight = 142;
   const x = (speed: number) =>
     plotX + scaleChartValue(speed, speedMin, speedMax) * plotWidth;
   const lactateY = (lactate: number) =>
@@ -587,18 +587,6 @@ function drawAnalysisChart(
     doc.text("bpm", plotX + plotWidth, plotY - 2, { align: "right" });
   }
 
-  if (zones.length > 0) {
-    drawHeartRateZoneLadder(
-      doc,
-      zones,
-      labels,
-      margin,
-      plotY,
-      15.5,
-      plotHeight,
-    );
-  }
-
   const ribbonY = plotY + plotHeight + 8;
   if (zones.length > 0) {
     drawZoneRibbon(
@@ -756,117 +744,6 @@ function drawZoneRibbon(
   });
 }
 
-function drawHeartRateZoneLadder(
-  doc: jsPDF,
-  zones: TrainingZone[],
-  labels: Record<string, string>,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-): void {
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(5);
-  doc.setTextColor(...muted);
-  doc.text(
-    `${labels.heartRate.toUpperCase()} / ${labels.zone.toUpperCase()}`,
-    x + width / 2,
-    y - 2.5,
-    { align: "center", maxWidth: width + 5 },
-  );
-
-  const gap = 0.8;
-  const availableHeight = height - gap * (zones.length - 1);
-  const finiteSpans = zones
-    .filter(
-      (zone) =>
-        zone.heartRateFrom !== undefined && zone.heartRateTo !== undefined,
-    )
-    .map((zone) =>
-      Math.max(
-        1,
-        (zone.heartRateTo as number) - (zone.heartRateFrom as number) + 1,
-      ),
-    )
-    .sort((first, second) => first - second);
-  const fallbackSpan =
-    finiteSpans.length > 0
-      ? finiteSpans[Math.floor(finiteSpans.length / 2)]
-      : 10;
-  const zoneSpans = zones.map((zone) =>
-    zone.heartRateFrom !== undefined && zone.heartRateTo !== undefined
-      ? Math.max(1, zone.heartRateTo - zone.heartRateFrom + 1)
-      : fallbackSpan,
-  );
-  const rowHeights = proportionalSegmentSizes(
-    zoneSpans,
-    availableHeight,
-    8,
-  );
-  const layouts: Array<{
-    zone: TrainingZone;
-    zoneIndex: number;
-    rowY: number;
-    rowHeight: number;
-  }> = [];
-  let cursorY = y + height;
-
-  zones.forEach((zone, zoneIndex) => {
-    const rowHeight = rowHeights[zoneIndex];
-    const rowY = cursorY - rowHeight;
-    layouts.push({ zone, zoneIndex, rowY, rowHeight });
-    cursorY = rowY - gap;
-  });
-
-  layouts.forEach(({ zone, zoneIndex, rowY, rowHeight }) => {
-    const color = zoneFill(zone);
-    doc.setFillColor(...color);
-    doc.roundedRect(x, rowY, width, rowHeight, 1.5, 1.5, "F");
-    doc.setTextColor(...contrastTextColor(color));
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(rowHeight < 9 ? 4.7 : 5.3);
-    doc.text(
-      `Z${zoneIndex + 1} ${zone.shortName ?? ""}`.trim(),
-      x + width / 2,
-      rowY + rowHeight / 2 + 1.5,
-      { align: "center", maxWidth: width - 1.2 },
-    );
-  });
-
-  zones.slice(0, -1).forEach((zone, index) => {
-    const nextZone = zones[index + 1];
-    const transitionHeartRate = nextZone.heartRateFrom ?? zone.heartRateTo;
-    if (transitionHeartRate === undefined) return;
-
-    const boundaryY = layouts[index].rowY - gap / 2;
-    const color = zoneFill(nextZone);
-    const labelWidth = 10.5;
-    const labelHeight = 5.4;
-    const labelX = x - labelWidth - 1.7;
-    const labelY = boundaryY - labelHeight / 2;
-
-    doc.setDrawColor(...color);
-    doc.setLineWidth(0.55);
-    doc.line(x - 1.2, boundaryY, x + 2.2, boundaryY);
-    doc.setFillColor(...color);
-    doc.roundedRect(
-      labelX,
-      labelY,
-      labelWidth,
-      labelHeight,
-      1.5,
-      1.5,
-      "F",
-    );
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(5.8);
-    doc.setTextColor(...contrastTextColor(color));
-    doc.text(`${transitionHeartRate}`, labelX + labelWidth / 2, boundaryY + 1.8, {
-      align: "center",
-    });
-  });
-}
-
 function drawSpeedTransitionLabels(
   doc: jsPDF,
   zones: TrainingZone[],
@@ -990,51 +867,6 @@ function drawChartLine(
 function scaleChartValue(value: number, min: number, max: number): number {
   if (max <= min) return 0.5;
   return Math.min(1, Math.max(0, (value - min) / (max - min)));
-}
-
-function proportionalSegmentSizes(
-  weights: number[],
-  totalSize: number,
-  minimumSize: number,
-): number[] {
-  if (weights.length === 0) return [];
-  if (totalSize <= minimumSize * weights.length) {
-    return weights.map(() => totalSize / weights.length);
-  }
-
-  const sizes = weights.map(() => 0);
-  let remainingSize = totalSize;
-  let remainingIndexes = weights.map((_, index) => index);
-
-  while (remainingIndexes.length > 0) {
-    const remainingWeight = remainingIndexes.reduce(
-      (sum, index) => sum + Math.max(0.01, weights[index]),
-      0,
-    );
-    const undersized = remainingIndexes.filter(
-      (index) =>
-        (remainingSize * Math.max(0.01, weights[index])) / remainingWeight <
-        minimumSize,
-    );
-
-    if (undersized.length === 0) {
-      remainingIndexes.forEach((index) => {
-        sizes[index] =
-          (remainingSize * Math.max(0.01, weights[index])) / remainingWeight;
-      });
-      break;
-    }
-
-    undersized.forEach((index) => {
-      sizes[index] = minimumSize;
-    });
-    remainingSize -= undersized.length * minimumSize;
-    remainingIndexes = remainingIndexes.filter(
-      (index) => !undersized.includes(index),
-    );
-  }
-
-  return sizes;
 }
 
 function drawDiscussion(
