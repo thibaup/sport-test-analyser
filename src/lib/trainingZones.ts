@@ -65,7 +65,8 @@ function standard5Zones(lt1: number, lt2: number, context: ZoneContext): Standar
   const z2Max = round1(0.9 * lt1);
   const z3Max = round1(lt2);
   const z4Max = round1(1.03 * lt2);
-  const hrZ1Max = context.lt1HeartRate ? Math.round(0.85 * context.lt1HeartRate) : undefined;
+
+  const hrZ1Max = context.lt1HeartRate ? Math.round(0.9 * context.lt1HeartRate) : undefined;
   const hrZ2Max = context.lt1HeartRate ? Math.round(0.9 * context.lt1HeartRate) : undefined;
   const hrZ3Max = context.lt2HeartRate ? Math.round(context.lt2HeartRate) : undefined;
   const hrZ4Max = context.lt2HeartRate ? Math.round(1.02 * context.lt2HeartRate) : undefined;
@@ -77,7 +78,7 @@ function standard5Zones(lt1: number, lt2: number, context: ZoneContext): Standar
       '60% LT1 - 85% LT1',
       round1(0.6 * lt1),
       z1Max,
-      context.lt1HeartRate ? Math.round(0.6 * context.lt1HeartRate) : undefined,
+      context.lt1HeartRate ? Math.round(0.65 * context.lt1HeartRate) : undefined,
       hrZ1Max,
       '#D1D5DB',
     ),
@@ -101,46 +102,29 @@ function standard5Zones(lt1: number, lt2: number, context: ZoneContext): Standar
       hrZ3Max,
       '#EAB308',
     ),
-    zoneDefinition(
-      4,
-      'THR',
-      'LT2 - 103% LT2',
-      z3Max,
-      z4Max,
-      hrZ3Max != null ? hrZ3Max + 1 : undefined,
-      hrZ4Max,
-      '#F97316',
-    ),
-    zoneDefinition(
-      5,
-      'VO2',
-      '103% LT2 - 120% LT2',
-      z4Max,
-      round1(max),
-      hrZ4Max != null ? hrZ4Max + 1 : undefined,
-      context.maxHeartRate || undefined,
-      '#EF4444',
-    ),
+    zoneDefinition(4, 'THR', 'LT2 - 103% LT2', z3Max, z4Max, hrZ3Max != null ? hrZ3Max + 1 : undefined, hrZ4Max, '#F97316'),
+    zoneDefinition(5, 'VO2', '103% LT2 - 120% LT2', z4Max, round1(max), hrZ4Max != null ? hrZ4Max + 1 : undefined, context.maxHeartRate || undefined, '#EF4444'),
   ];
 }
 
 function standard7Zones(lt1: number, lt2: number, context: ZoneContext): StandardZone[] {
-  const z2Top = 0.9 * lt1;
-  const mid = (z2Top + lt2) / 2;
+  const mid = (Number(lt1) + Number(lt2)) / 2;
 
   const z1Max = round1(0.8 * lt1);
-  const z2Max = round1(z2Top);
+  const z2Max = round1(0.9 * lt1);
   const z3Max = round1(mid);
   const z4Max = round1(lt2);
   const z5Max = round1(1.03 * lt2);
   const z6Max = round1(1.2 * lt2);
 
-  const hrZ1Max = context.lt1HeartRate ? Math.round(0.8 * context.lt1HeartRate) : undefined;
+  const hrZ1Max = context.lt1HeartRate ? Math.round(0.9 * context.lt1HeartRate) : undefined;
   const hrZ2Max = context.lt1HeartRate ? Math.round(0.9 * context.lt1HeartRate) : undefined;
+
   const hrZ3Max =
-    hrZ2Max && context.lt2HeartRate
-      ? Math.round((hrZ2Max + context.lt2HeartRate) / 2)
+    context.lt1HeartRate && context.lt2HeartRate
+      ? Math.round((context.lt1HeartRate + context.lt2HeartRate) / 2)
       : undefined;
+
   const hrZ4Max = context.lt2HeartRate ? Math.round(context.lt2HeartRate) : undefined;
   const hrZ5Max = context.lt2HeartRate ? Math.round(1.02 * context.lt2HeartRate) : undefined;
 
@@ -149,6 +133,7 @@ function standard7Zones(lt1: number, lt2: number, context: ZoneContext): Standar
     vo2HeartRateFrom,
     context.maxHeartRate,
   );
+
   const vo2HeartRateTo =
     nmrHeartRateFrom !== undefined &&
     vo2HeartRateFrom !== undefined &&
@@ -180,7 +165,7 @@ function standard7Zones(lt1: number, lt2: number, context: ZoneContext): Standar
     zoneDefinition(
       3,
       'TMP',
-      '90% LT1 - 1/2(90% LT1+LT2)',
+      '90% LT1 - 1/2(LT1+LT2)',
       z2Max,
       z3Max,
       hrZ2Max != null ? hrZ2Max + 1 : undefined,
@@ -190,43 +175,16 @@ function standard7Zones(lt1: number, lt2: number, context: ZoneContext): Standar
     zoneDefinition(
       4,
       'SST',
-      '1/2(90% LT1+LT2) - LT2',
+      '1/2(LT1+LT2) - LT2',
       z3Max,
       z4Max,
       hrZ3Max != null ? hrZ3Max + 1 : undefined,
       hrZ4Max,
       '#EAB308',
     ),
-    zoneDefinition(
-      5,
-      'THR',
-      'LT2 - 103% LT2',
-      z4Max,
-      z5Max,
-      hrZ4Max != null ? hrZ4Max + 1 : undefined,
-      hrZ5Max,
-      '#F97316',
-    ),
-    zoneDefinition(
-      6,
-      'VO2',
-      '103% LT2 - 120% LT2',
-      z5Max,
-      z6Max,
-      vo2HeartRateFrom,
-      vo2HeartRateTo,
-      '#EF4444',
-    ),
-    zoneDefinition(
-      7,
-      'NMR',
-      '> 120% LT2',
-      z6Max,
-      null,
-      nmrHeartRateFrom,
-      null,
-      '#991B1B',
-    ),
+    zoneDefinition(5, 'THR', 'LT2 - 103% LT2', z4Max, z5Max, hrZ4Max != null ? hrZ4Max + 1 : undefined, hrZ5Max, '#F97316'),
+    zoneDefinition(6, 'VO2', '103% LT2 - 120% LT2', z5Max, z6Max, vo2HeartRateFrom, vo2HeartRateTo, '#EF4444'),
+    zoneDefinition(7, 'NMR', '> 120% LT2', z6Max, null, nmrHeartRateFrom, null, '#991B1B'),
   ];
 }
 
