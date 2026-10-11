@@ -392,10 +392,10 @@ function thresholdMethodLabel(method: Lt1MethodId | Lt2MethodId, language: Langu
     baseline_plus_04: { nl: 'Baseline + 0,4', en: 'Baseline + 0.4' },
     baseline_plus: { nl: 'Baseline + 0,5', en: 'Baseline + 0.5' },
     manual_lt1: { nl: 'Handmatig vastleggen', en: 'Set manually' },
-    dmax_modified: { nl: 'D-Max Modified', en: 'D-Max Modified' },
+    dmax_modified: { nl: 'D-Max vanaf gekozen LT1', en: 'D-Max from selected LT1' },
     dmax: { nl: 'D-Max', en: 'D-Max' },
     tangent51: { nl: 'Tangent 51', en: 'Tangent 51' },
-    stegmann: { nl: 'Stegmann', en: 'Stegmann' },
+    stegmann: { nl: 'Polynoom buigpunt', en: 'Polynomial inflection' },
     fixed_4: { nl: '4 mmol', en: '4 mmol' },
     manual_lt2: { nl: 'Handmatig vastleggen', en: 'Set manually' },
   };

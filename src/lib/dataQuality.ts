@@ -38,16 +38,16 @@ export function analyzeDataQuality(steps: TestStep[]): DataQualityResult {
         message: `Step ${step.step} is missing distance, speed, or pace.`,
       });
     }
-    if (!isFiniteNumber(step.lactate)) {
+    if (!isFiniteNumber(step.lactate) || step.lactate < 0) {
       warnings.push({
         id: `missing-lactate-${step.id}`,
         severity: 'critical',
         metric: 'lactate',
         stepId: step.id,
-        message: `Step ${step.step} has no lactate value, so it cannot support threshold detection.`,
+        message: `Step ${step.step} needs a finite, nonnegative lactate value to support threshold detection.`,
       });
     }
-    if (!isFiniteNumber(step.heartRate)) {
+    if (!isFiniteNumber(step.heartRate) || step.heartRate <= 0) {
       warnings.push({
         id: `missing-hr-${step.id}`,
         severity: 'info',
@@ -59,7 +59,7 @@ export function analyzeDataQuality(steps: TestStep[]): DataQualityResult {
   });
 
   checkSpeedProgression(steps, warnings);
-  checkLactateJumps(validPoints, warnings, suspectedOutlierIds);
+  checkLactateJumps(validPoints, warnings);
   checkCurveResiduals(validPoints, warnings, suspectedOutlierIds);
   checkHeartRateConsistency(validPoints, warnings);
 
@@ -108,11 +108,11 @@ function checkSpeedProgression(steps: TestStep[], warnings: WarningItem[]): void
 function checkLactateJumps(
   points: ValidTestPoint[],
   warnings: WarningItem[],
-  suspectedOutlierIds: Set<string>,
 ): void {
   for (let index = 1; index < points.length; index += 1) {
     const previous = points[index - 1];
     const current = points[index];
+    if (current.speedKmh <= previous.speedKmh) continue;
     const speedDelta = Math.max(0.1, current.speedKmh - previous.speedKmh);
     const lactateDelta = current.lactate - previous.lactate;
     const slope = lactateDelta / speedDelta;
@@ -124,7 +124,6 @@ function checkLactateJumps(
         stepId: current.id,
         message: `Step ${current.step} has a sharp lactate rise of ${lactateDelta.toFixed(1)} mmol/L over ${speedDelta.toFixed(1)} km/h.`,
       });
-      if (lactateDelta > 2.3) suspectedOutlierIds.add(current.id);
     }
   }
 }
@@ -134,11 +133,12 @@ function checkCurveResiduals(
   warnings: WarningItem[],
   suspectedOutlierIds: Set<string>,
 ): void {
-  if (points.length < 5) return;
+  const uniqueCount = new Set(points.map((point) => point.speedKmh)).size;
+  if (points.length < 5 || uniqueCount < 3) return;
   const coefficients = polynomialRegression(
     points.map((point) => point.speedKmh),
     points.map((point) => point.lactate),
-    Math.min(3, points.length - 1),
+    Math.min(3, uniqueCount - 1),
   );
 
   points.forEach((point) => {

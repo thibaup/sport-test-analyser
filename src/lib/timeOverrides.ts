@@ -3,6 +3,7 @@ import type {
   AppAnalysis,
   TargetTimeOverride,
 } from "../types/lactate";
+import { round, speedToPaceSecondsPerKm } from "./conversions";
 
 export function createEmptyTimeOverrides(): AnalysisTimeOverrides {
   return { targetTimes: {}, raceEstimates: {} };
@@ -21,9 +22,8 @@ export function applyTimeOverrides(
 ): AppAnalysis {
   return {
     ...analysis,
-    targets: analysis.targets.map((target) => ({
-      ...target,
-      times: target.times.map((time) => {
+    targets: analysis.targets.map((target) => {
+      const times = target.times.map((time) => {
         const override =
           overrides.targetTimes[
             targetTimeOverrideKey(target.id, time.distanceMeters)
@@ -82,16 +82,20 @@ export function applyTimeOverrides(
         const recoverySeconds = hasRecoveryOverride
           ? (override.recoverySeconds as number)
           : time.recoverySeconds;
+        if (timeFromSeconds > timeToSeconds || repetitionsFrom > repetitionsTo) {
+          return time;
+        }
         const distanceKm = time.distanceMeters / 1000;
+        const timeChanged = hasFromOverride || hasToOverride;
 
         return {
           ...time,
           timeFromSeconds,
           timeToSeconds,
-          speedFromKmh: (distanceKm / timeToSeconds) * 3600,
-          speedToKmh: (distanceKm / timeFromSeconds) * 3600,
-          paceFromSecondsPerKm: timeFromSeconds / distanceKm,
-          paceToSecondsPerKm: timeToSeconds / distanceKm,
+          speedFromKmh: timeChanged ? (distanceKm / timeToSeconds) * 3600 : time.speedFromKmh,
+          speedToKmh: timeChanged ? (distanceKm / timeFromSeconds) * 3600 : time.speedToKmh,
+          paceFromSecondsPerKm: timeChanged ? timeFromSeconds / distanceKm : time.paceFromSecondsPerKm,
+          paceToSecondsPerKm: timeChanged ? timeToSeconds / distanceKm : time.paceToSecondsPerKm,
           repetitionsFrom,
           repetitionsTo,
           recoverySeconds,
@@ -103,8 +107,19 @@ export function applyTimeOverrides(
           repetitionsToOverridden: hasRepetitionsToOverride,
           recoverySecondsOverridden: hasRecoveryOverride,
         };
-      }),
-    })),
+      });
+      if (times.every((time, index) => time === target.times[index])) return target;
+      const minSpeed = Math.min(...times.map((time) => time.speedFromKmh));
+      const maxSpeed = Math.max(...times.map((time) => time.speedToKmh));
+      return {
+        ...target,
+        times,
+        speedFromKmh: round(minSpeed, 1),
+        speedToKmh: round(maxSpeed, 1),
+        paceFromSecondsPerKm: speedToPaceSecondsPerKm(maxSpeed) ?? 0,
+        paceToSecondsPerKm: speedToPaceSecondsPerKm(minSpeed) ?? 0,
+      };
+    }),
     raceEstimates: analysis.raceEstimates.map((estimate) => {
       const override = overrides.raceEstimates[`${estimate.distanceMeters}`];
       if (

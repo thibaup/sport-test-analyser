@@ -113,6 +113,7 @@ export function TargetPaces({
                   <div className="mt-2 flex flex-wrap items-center gap-1.5 text-slate-400">
                     <EditableDuration
                       seconds={time.timeFromSeconds}
+                      maxSeconds={time.timeToSeconds}
                       isCustom={time.timeFromOverridden}
                       label={`${active.name} ${time.distanceMeters} m ${t(language, "fastEnd")}`}
                       language={language}
@@ -129,6 +130,7 @@ export function TargetPaces({
                     <span aria-hidden="true">-</span>
                     <EditableDuration
                       seconds={time.timeToSeconds}
+                      minSeconds={time.timeFromSeconds}
                       isCustom={time.timeToOverridden}
                       label={`${active.name} ${time.distanceMeters} m ${t(language, "controlledEnd")}`}
                       language={language}
@@ -220,6 +222,7 @@ export function TargetPaces({
                     <span className="inline-flex items-center gap-1.5 text-slate-400">
                       <EditableDuration
                         seconds={time.timeFromSeconds}
+                        maxSeconds={time.timeToSeconds}
                         isCustom={time.timeFromOverridden}
                         label={`${active.name} ${time.distanceMeters} m ${t(language, "fastEnd")}`}
                         language={language}
@@ -236,6 +239,7 @@ export function TargetPaces({
                       <span aria-hidden="true">-</span>
                       <EditableDuration
                         seconds={time.timeToSeconds}
+                        minSeconds={time.timeFromSeconds}
                         isCustom={time.timeToOverridden}
                         label={`${active.name} ${time.distanceMeters} m ${t(language, "controlledEnd")}`}
                         language={language}

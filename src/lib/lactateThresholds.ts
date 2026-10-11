@@ -57,7 +57,7 @@ export const thresholdMethodDefinitions: MethodDefinition[] = [
   },
   {
     id: 'dmax_modified',
-    name: 'LT2 D-Max Modified',
+    name: 'LT2 D-Max from selected LT1',
     explanation: 'Uses the maximum distance from the polynomial curve to the LT1-to-final lactate line.',
   },
   {
@@ -67,7 +67,7 @@ export const thresholdMethodDefinitions: MethodDefinition[] = [
   },
   {
     id: 'stegmann',
-    name: 'LT2 Stegmann',
+    name: 'LT2 Polynomial inflection',
     explanation: 'Uses the polynomial curve inflection point.',
   },
   {
@@ -275,6 +275,7 @@ function makePair(
     aerobic?.insufficientReason,
     anaerobic?.insufficientReason,
     quality.validStepCount < 5 ? 'Fewer than five test points limits threshold estimates.' : undefined,
+    ...quality.warnings.filter((warning) => warning.severity === 'critical').map((warning) => warning.message),
   ].filter((item): item is string => Boolean(item));
 
   return {
@@ -312,7 +313,7 @@ function referencePairExplanation(aerobicMethod: Lt1MethodId, anaerobicMethod: L
 
 function insufficientReason(methodId: Lt1MethodId | Lt2MethodId): string {
   if (methodId === 'manual_lt1' || methodId === 'manual_lt2') return 'No manual threshold speed has been selected.';
-  if (methodId === 'stegmann') return 'Stegmann requires a usable polynomial inflection point.';
+  if (methodId === 'stegmann') return 'The fitted curve has no usable polynomial inflection point.';
   if (methodId === 'tangent51') return 'The fitted curve does not expose a usable 51-degree tangent point.';
   return 'The lactate curve does not support this threshold method with the current data.';
 }

@@ -14,7 +14,7 @@ export function toValidPoints(steps: TestStep[]): ValidTestPoint[] {
       const speed = step.speedKmh ?? paceSecondsPerKmToSpeed(step.paceSecondsPerKm);
       const pace = step.paceSecondsPerKm ?? speedToPaceSecondsPerKm(speed);
       const duration = step.durationSeconds ?? calculateDurationSeconds(step.distanceKm, speed);
-      if (!isFiniteNumber(speed) || speed <= 0 || !isFiniteNumber(pace) || !isFiniteNumber(step.lactate)) {
+      if (!isFiniteNumber(speed) || speed <= 0 || !isFiniteNumber(pace) || pace <= 0 || !isFiniteNumber(step.lactate) || step.lactate < 0) {
         return;
       }
       const point: ValidTestPoint = {
@@ -40,10 +40,10 @@ export function createCurvePoints(steps: TestStep[], validPoints: ValidTestPoint
   const curve: CurvePoint[] = [];
   steps.forEach((step) => {
       const speed = step.speedKmh ?? paceSecondsPerKmToSpeed(step.paceSecondsPerKm);
-      if (!isFiniteNumber(speed)) return;
+      if (!isFiniteNumber(speed) || speed <= 0) return;
       curve.push({
         speedKmh: speed,
-        lactate: isFiniteNumber(step.lactate) ? step.lactate : undefined,
+        lactate: isFiniteNumber(step.lactate) && step.lactate >= 0 ? step.lactate : undefined,
         smoothedLactate: smoothBySpeed.get(speed.toFixed(4)),
         heartRate: isFiniteNumber(step.heartRate) ? step.heartRate : undefined,
         invalid: Boolean(step.invalid || step.suspectedOutlier),
@@ -109,7 +109,7 @@ export function findSpeedAtLactate(
 export function smoothLactateCurve(points: ValidTestPoint[]): CurvePoint[] {
   const usable = points.sort((a, b) => a.speedKmh - b.speedKmh);
   if (usable.length === 0) return [];
-  if (usable.length < 4) {
+  if (new Set(usable.map((point) => point.speedKmh)).size < 4) {
     return usable.map((point) => ({
       speedKmh: point.speedKmh,
       lactate: point.lactate,
@@ -120,11 +120,17 @@ export function smoothLactateCurve(points: ValidTestPoint[]): CurvePoint[] {
   }
 
   const degree = Math.min(3, usable.length - 1);
-  const coefficients = polynomialRegression(
-    usable.map((point) => point.speedKmh),
-    usable.map((point) => point.lactate),
-    degree,
-  );
+  let coefficients: number[];
+  try {
+    coefficients = polynomialRegression(
+      usable.map((point) => point.speedKmh),
+      usable.map((point) => point.lactate),
+      degree,
+    );
+    if (!coefficients.every(Number.isFinite)) throw new Error('Invalid fit');
+  } catch {
+    return usable.map((point) => ({ speedKmh: point.speedKmh, smoothedLactate: point.lactate }));
+  }
 
   return usable.map((point) => {
     const polynomialValue = polynomialPredict(coefficients, point.speedKmh);
@@ -145,12 +151,20 @@ export function smoothLactateCurve(points: ValidTestPoint[]): CurvePoint[] {
 export function samplePolynomialCurve(points: ValidTestPoint[], sampleCount = 160): CurvePoint[] {
   if (points.length < 3) return smoothLactateCurve(points);
   const sorted = points.sort((a, b) => a.speedKmh - b.speedKmh);
-  const degree = Math.min(3, sorted.length - 1);
-  const coefficients = polynomialRegression(
-    sorted.map((point) => point.speedKmh),
-    sorted.map((point) => point.lactate),
-    degree,
-  );
+  const uniqueCount = new Set(sorted.map((point) => point.speedKmh)).size;
+  if (uniqueCount < 3) return smoothLactateCurve(points);
+  const degree = Math.min(3, uniqueCount - 1);
+  let coefficients: number[];
+  try {
+    coefficients = polynomialRegression(
+      sorted.map((point) => point.speedKmh),
+      sorted.map((point) => point.lactate),
+      degree,
+    );
+    if (!coefficients.every(Number.isFinite)) throw new Error('Invalid fit');
+  } catch {
+    return smoothLactateCurve(points);
+  }
   const minSpeed = sorted[0].speedKmh;
   const maxSpeed = sorted[sorted.length - 1].speedKmh;
   const samples: CurvePoint[] = [];

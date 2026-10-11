@@ -13,6 +13,8 @@ interface EditableDurationProps {
   language: Language;
   testId: string;
   allowZero?: boolean;
+  minSeconds?: number;
+  maxSeconds?: number;
   onChange: (seconds: number | undefined) => void;
 }
 
@@ -23,6 +25,8 @@ export function EditableDuration({
   language,
   testId,
   allowZero = false,
+  minSeconds,
+  maxSeconds,
   onChange,
 }: EditableDurationProps) {
   const [draft, setDraft] = useState(() => formatDuration(seconds));
@@ -33,7 +37,9 @@ export function EditableDuration({
 
   const commit = () => {
     const parsed = parseTimeToSeconds(draft);
-    if (parsed !== undefined && (allowZero ? parsed >= 0 : parsed > 0)) {
+    if (parsed !== undefined && (allowZero ? parsed >= 0 : parsed > 0)
+      && (minSeconds === undefined || parsed >= minSeconds)
+      && (maxSeconds === undefined || parsed <= maxSeconds)) {
       onChange(parsed);
       setDraft(formatDuration(parsed));
       return;

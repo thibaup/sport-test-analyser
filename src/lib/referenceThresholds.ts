@@ -28,13 +28,20 @@ interface ReferenceCurve {
 const DEFAULT_CURVE_TYPE = 'poly3';
 
 export function toReferenceDataPoints(points: ValidTestPoint[]): ReferenceDataPoint[] {
-  return points
-    .map((point) => ({
-      intensity: point.speedKmh,
-      lactate: point.lactate,
-      heartRate: point.heartRate,
-    }))
-    .filter((point) => Number.isFinite(point.intensity) && Number.isFinite(point.lactate))
+  const groups = new Map<number, { lactateSum: number; count: number; hrSum: number; hrCount: number }>();
+  for (const point of points) {
+    if (!Number.isFinite(point.speedKmh) || point.speedKmh <= 0 || !Number.isFinite(point.lactate) || point.lactate < 0) continue;
+    const group = groups.get(point.speedKmh) ?? { lactateSum: 0, count: 0, hrSum: 0, hrCount: 0 };
+    group.lactateSum += point.lactate;
+    group.count += 1;
+    if (point.heartRate !== undefined && Number.isFinite(point.heartRate) && point.heartRate > 0) {
+      group.hrSum += point.heartRate;
+      group.hrCount += 1;
+    }
+    groups.set(point.speedKmh, group);
+  }
+  return [...groups].map(([intensity, group]) => ({ intensity, lactate: group.lactateSum / group.count,
+    heartRate: group.hrCount ? group.hrSum / group.hrCount : undefined }))
     .sort((a, b) => a.intensity - b.intensity);
 }
 
@@ -45,9 +52,8 @@ export function calculateReferenceLt1(
 ): ReferenceThreshold | undefined {
   const dataPoints = toReferenceDataPoints(points);
   if (dataPoints.length < 2) return undefined;
-  const curve = createCurve(dataPoints, DEFAULT_CURVE_TYPE);
-
   try {
+    const curve = createCurve(dataPoints, DEFAULT_CURVE_TYPE);
     if (method === 'manual_lt1') return manualThreshold(dataPoints, curve, manualSpeed);
     const searchStart = findInitialNadirIntensity(dataPoints);
     if (method === 'fixed_2') return obla(dataPoints, 2, curve, searchStart);
@@ -69,9 +75,8 @@ export function calculateReferenceLt2(
 ): ReferenceThreshold | undefined {
   const dataPoints = toReferenceDataPoints(points);
   if (dataPoints.length < 2) return undefined;
-  const curve = createCurve(dataPoints, DEFAULT_CURVE_TYPE);
-
   try {
+    const curve = createCurve(dataPoints, DEFAULT_CURVE_TYPE);
     if (method === 'manual_lt2') return manualThreshold(dataPoints, curve, manualSpeed);
     if (method === 'fixed_4') return obla(dataPoints, 4, curve, findInitialNadirIntensity(dataPoints));
     if (method === 'dmax') return dmax(dataPoints, curve);
@@ -95,6 +100,10 @@ export function calculateBaselineLactate(dataPoints: ReferenceDataPoint[]): numb
       break;
     }
   }
+  // Require an initial block before the first qualifying rise; a nonflat test without one is unsupported.
+  if (sorted.length < 2) return null;
+  if (firstRiseIndex < 0 && sorted.some((point) => point.lactate !== sorted[0].lactate)) return null;
+  if (firstRiseIndex === 1) return null;
   const baselinePoints = firstRiseIndex > 0 ? sorted.slice(0, firstRiseIndex) : sorted;
   return baselinePoints.reduce((sum, point) => sum + point.lactate, 0) / baselinePoints.length;
 }
@@ -102,13 +111,17 @@ export function calculateBaselineLactate(dataPoints: ReferenceDataPoint[]): numb
 export function sampleReferenceCurve(points: ValidTestPoint[], count = 160): CurvePoint[] {
   const dataPoints = toReferenceDataPoints(points);
   if (dataPoints.length < 2) return [];
-  const curve = createCurve(dataPoints, DEFAULT_CURVE_TYPE);
-  const min = dataPoints[0].intensity;
-  const max = dataPoints[dataPoints.length - 1].intensity;
-  return curve.generatePoints(min, max, count).map((point) => ({
-    speedKmh: point.x,
-    smoothedLactate: Math.max(0.4, point.y),
-  }));
+  try {
+    const curve = createCurve(dataPoints, DEFAULT_CURVE_TYPE);
+    const min = dataPoints[0].intensity;
+    const max = dataPoints[dataPoints.length - 1].intensity;
+    return curve.generatePoints(min, max, count).map((point) => ({
+      speedKmh: point.x,
+      smoothedLactate: Math.max(0.4, point.y),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export function referenceMethodName(type: ThresholdType, method: Lt1MethodId | Lt2MethodId): string {
@@ -120,9 +133,9 @@ export function referenceMethodName(type: ThresholdType, method: Lt1MethodId | L
     fixed_2: '2.0 mmol/L',
     manual_lt2: 'Manual LT2',
     dmax: 'D-Max',
-    dmax_modified: 'D-Max Modified',
+    dmax_modified: 'D-Max from selected LT1',
     tangent51: 'Tangent 51',
-    stegmann: 'Stegmann',
+    stegmann: 'Polynomial inflection',
     fixed_4: '4.0 mmol/L',
   };
   const prefix = type === 'aerobic' ? 'LT1' : 'LT2';
@@ -206,6 +219,14 @@ function findInitialNadirIntensity(dataPoints: ReferenceDataPoint[], rise = 0.4)
   return candidates.reduce((best, point) => (point.lactate < best.lactate ? point : best), candidates[0]).intensity;
 }
 
+function hasDmaxCurvature(curve: ReferenceCurve, min: number, max: number): boolean {
+  if (curve.degree < 2 || !(max > min)) return false;
+  const samples = curve.generatePoints(min, max, 200);
+  const start = samples[0];
+  const end = samples[samples.length - 1];
+  return samples.some((point) => perpendicularDistance(point, start, end) > 1e-8);
+}
+
 function dmax(dataPoints: ReferenceDataPoint[], curve: ReferenceCurve): ReferenceThreshold {
   if (dataPoints.length < 4) throw new Error('At least 4 data points are needed for D-Max analysis');
   const sorted = dataPoints.slice().sort((a, b) => a.intensity - b.intensity);
@@ -213,6 +234,7 @@ function dmax(dataPoints: ReferenceDataPoint[], curve: ReferenceCurve): Referenc
   const max = sorted[sorted.length - 1].intensity;
   const lineStart = { x: min, y: sorted[0].lactate };
   const lineEnd = { x: max, y: sorted[sorted.length - 1].lactate };
+  if (!hasDmaxCurvature(curve, min, max)) throw new Error('D-Max curvature unavailable');
   const curvePoints = curve.generatePoints(min, max, 200);
   let maxDistance = 0;
   let maxPoint = curvePoints[0];
@@ -223,6 +245,7 @@ function dmax(dataPoints: ReferenceDataPoint[], curve: ReferenceCurve): Referenc
       maxPoint = point;
     }
   }
+  if (maxDistance <= 1e-8 || maxPoint.x <= min || maxPoint.x >= max) throw new Error('No interior D-Max');
   return {
     intensity: Math.round(100 * maxPoint.x) / 100,
     lactate: Math.round(100 * maxPoint.y) / 100,
@@ -242,6 +265,7 @@ function dmaxModified(dataPoints: ReferenceDataPoint[], curve: ReferenceCurve, l
   const max = sorted[sorted.length - 1].intensity;
   const lineStart = { x: min, y: start.lactate };
   const lineEnd = { x: max, y: sorted[sorted.length - 1].lactate };
+  if (!hasDmaxCurvature(curve, min, max)) throw new Error('D-Max curvature unavailable');
   const candidatePoints = curve.generatePoints(min, max, 200);
   let maxDistance = 0;
   let maxPoint = candidatePoints[0];
@@ -252,6 +276,7 @@ function dmaxModified(dataPoints: ReferenceDataPoint[], curve: ReferenceCurve, l
       maxPoint = point;
     }
   }
+  if (maxDistance <= 1e-8 || maxPoint.x <= min || maxPoint.x >= max) throw new Error('No interior D-Max');
   return {
     intensity: Math.round(100 * maxPoint.x) / 100,
     lactate: Math.round(100 * maxPoint.y) / 100,
@@ -264,6 +289,7 @@ function tangent51(dataPoints: ReferenceDataPoint[], curve: ReferenceCurve, angl
   const sorted = dataPoints.slice().sort((a, b) => a.intensity - b.intensity);
   const min = sorted[0].intensity;
   const max = sorted[sorted.length - 1].intensity;
+  if (!hasDmaxCurvature(curve, min, max)) throw new Error('No identifiable tangent point');
   const slope = Math.tan((angle * Math.PI) / 180);
   const intensity = curve.findIntensityAtSlope(slope, min, max);
   if (intensity == null) throw new Error('Could not find tangent point');
@@ -280,8 +306,9 @@ function stegmann(dataPoints: ReferenceDataPoint[], curve: ReferenceCurve): Refe
   const sorted = dataPoints.slice().sort((a, b) => a.intensity - b.intensity);
   const min = sorted[0].intensity;
   const max = sorted[sorted.length - 1].intensity;
+  if (!hasDmaxCurvature(curve, min, max)) throw new Error('Inflection curvature unavailable');
   const point = curve.findInflection(min, max);
-  if (point == null) throw new Error('Stegmann requires a polynomial of degree 3 or higher');
+  if (point == null) throw new Error('No identifiable polynomial inflection');
   return {
     intensity: Math.round(100 * point.x) / 100,
     lactate: Math.round(100 * point.y) / 100,
@@ -295,12 +322,13 @@ function createCurve(dataPoints: ReferenceDataPoint[], curveFitType = DEFAULT_CU
     .filter((point) => Number.isFinite(point.x) && Number.isFinite(point.y))
     .sort((a, b) => a.x - b.x);
 
-  const deduped: Array<{ x: number; y: number }> = [];
+  const groups: Array<{ x: number; sum: number; count: number }> = [];
   for (const point of points) {
-    const last = deduped[deduped.length - 1];
-    if (last && last.x === point.x) last.y = (last.y + point.y) / 2;
-    else deduped.push({ x: point.x, y: point.y });
+    const last = groups[groups.length - 1];
+    if (last && last.x === point.x) { last.sum += point.y; last.count += 1; }
+    else groups.push({ x: point.x, sum: point.y, count: 1 });
   }
+  const deduped = groups.map(({ x, sum, count }) => ({ x, y: sum / count }));
 
   if (deduped.length < 2) throw new Error('At least 2 data points are needed to determine a curve');
   if (curveFitType === 'linear') return createLinearCurve(deduped);
@@ -357,11 +385,11 @@ function createPolynomialCurve(points: Array<{ x: number; y: number }>, degree: 
       return findIntensityAtLactate(evaluate, lactate, min, max, tolerance);
     },
     findIntensityAtSlope(slope, min, max) {
-      return findIntensityAtSlope(derivative, slope, min, max, 0.0001, true);
+      return findIntensityAtSlope(derivative, slope, min, max, 0.0001);
     },
     findInflection(min, max) {
       if (degree < 3) return null;
-      return findInflection(second, derivative, evaluate, min, max);
+      return findInflection(second, evaluate, min, max);
     },
   };
 }
@@ -416,9 +444,9 @@ function createLinearCurve(points: Array<{ x: number; y: number }>): ReferenceCu
       for (let index = 0; index < points.length - 1; index += 1) {
         if (points[index + 1].x <= low) continue;
         if (points[index].x >= high) break;
-        if (segmentSlope(index) >= slope) return Math.max(low, points[index].x);
+        if (Math.abs(segmentSlope(index) - slope) <= 0.0001) return Math.max(low, points[index].x);
       }
-      return high;
+      return null;
     },
     findInflection() {
       return null;
@@ -434,32 +462,36 @@ function findIntensityAtLactate(
   tolerance = 0.001,
 ): number | null {
   const min = Number(minIntensity);
-  const step = (Number(maxIntensity) - min) / 200;
+  const max = Number(maxIntensity);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || max < min) return null;
+  const step = (max - min) / 200;
   let previousX = min;
   let previousValue = evaluate(min) - lactate;
+  if (!Number.isFinite(previousValue)) return null;
+  if (Math.abs(previousValue) <= 1e-10 && step > 0 && evaluate(min + step) - lactate > 1e-10) return min;
 
   for (let index = 1; index <= 200; index += 1) {
     const x = min + index * step;
     const value = evaluate(x) - lactate;
-
-    if (previousValue <= 0 && value > 0) {
+    if (!Number.isFinite(value)) return null;
+    if (Math.abs(value) <= 1e-10 && previousValue < -1e-10) return x;
+    if (previousValue < 0 && value > 0) {
       let low = previousX;
       let high = x;
       for (let iteration = 0; iteration < 80; iteration += 1) {
         const mid = (low + high) / 2;
         const midValue = evaluate(mid) - lactate;
+        if (!Number.isFinite(midValue)) return null;
         if (Math.abs(midValue) < tolerance) return mid;
         if (midValue > 0) high = mid;
         else low = mid;
       }
       return (low + high) / 2;
     }
-
     previousX = x;
     previousValue = value;
   }
-
-  return evaluate(min) - lactate >= 0 ? min : null;
+  return null;
 }
 
 function findIntensityAtSlope(
@@ -468,44 +500,47 @@ function findIntensityAtSlope(
   minIntensity: number,
   maxIntensity: number,
   tolerance = 0.001,
-  allowEndpoint = true,
 ): number | null {
-  let low = Number(minIntensity);
-  let high = Number(maxIntensity);
-  let lowValue = derivative(low) - slope;
-  const highValue = derivative(high) - slope;
-
-  if (lowValue * highValue > 0) {
-    if (Math.abs(lowValue) < Math.abs(highValue)) {
-      return allowEndpoint || slope < derivative(low) ? low : null;
+  const min = Number(minIntensity);
+  const max = Number(maxIntensity);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || !(max > min)) return null;
+  let previousX = min;
+  let previousValue = derivative(min) - slope;
+  if (!Number.isFinite(previousValue)) return null;
+  if (Math.abs(previousValue) <= 1e-10) return min;
+  for (let index = 1; index <= 200; index += 1) {
+    const x = min + ((max - min) * index) / 200;
+    const value = derivative(x) - slope;
+    if (!Number.isFinite(value)) return null;
+    if (Math.abs(value) <= 1e-10) return x;
+    if (previousValue * value < 0) {
+      let low = previousX;
+      let high = x;
+      for (let iteration = 0; iteration < 100; iteration += 1) {
+        const mid = (low + high) / 2;
+        const midValue = derivative(mid) - slope;
+        if (!Number.isFinite(midValue)) return null;
+        if (Math.abs(midValue) < tolerance) return mid;
+        if (previousValue * midValue < 0) high = mid;
+        else { low = mid; previousValue = midValue; }
+      }
+      return (low + high) / 2;
     }
-    return allowEndpoint ? high : null;
+    previousX = x;
+    previousValue = value;
   }
-
-  for (let iteration = 0; iteration < 100; iteration += 1) {
-    const mid = (low + high) / 2;
-    const midValue = derivative(mid) - slope;
-    if (Math.abs(midValue) < tolerance) return mid;
-    if (lowValue * midValue < 0) {
-      high = mid;
-    } else {
-      low = mid;
-      lowValue = midValue;
-    }
-  }
-
-  return (low + high) / 2;
+  return null;
 }
 
 function findInflection(
   secondDerivative: (x: number) => number,
-  derivative: (x: number) => number,
   evaluate: (x: number) => number,
   minIntensity: number,
   maxIntensity: number,
 ): { x: number; y: number } | null {
   const min = Number(minIntensity);
   const max = Number(maxIntensity);
+  if (!Number.isFinite(min) || !Number.isFinite(max) || !(max > min)) return null;
   const intervals = 200;
   const step = (max - min) / intervals;
   let previousX = min;
@@ -515,8 +550,8 @@ function findInflection(
     const x = min + index * step;
     const value = secondDerivative(x);
 
-    if (previousValue === 0) return { x: previousX, y: evaluate(previousX) };
-
+    if (!Number.isFinite(value) || !Number.isFinite(previousValue)) return null;
+    if (value === 0) continue;
     if (previousValue * value < 0) {
       let low = previousX;
       let high = x;
@@ -533,20 +568,7 @@ function findInflection(
     previousValue = value;
   }
 
-  let bestScore = -Infinity;
-  let bestX = (min + max) / 2;
-  for (let index = 1; index < intervals; index += 1) {
-    const x = min + index * step;
-    const first = derivative(x);
-    const second = secondDerivative(x);
-    const score = Math.abs(second) / Math.pow(1 + first * first, 1.5);
-    if (score > bestScore) {
-      bestScore = score;
-      bestX = x;
-    }
-  }
-
-  return { x: bestX, y: evaluate(bestX) };
+  return null;
 }
 
 function fitPolynomialRegression(points: Array<{ intensity: number; lactate: number }>, degree = 3): number[] {
@@ -594,6 +616,9 @@ function fitPolynomialRegression(points: Array<{ intensity: number; lactate: num
       if (Math.abs(augmented[row][pivot]) > Math.abs(augmented[bestRow][pivot])) bestRow = row;
     }
 
+    if (!Number.isFinite(augmented[bestRow][pivot]) || Math.abs(augmented[bestRow][pivot]) < 1e-12) {
+      throw new Error('Singular polynomial fit');
+    }
     const temp = augmented[pivot];
     augmented[pivot] = augmented[bestRow];
     augmented[bestRow] = temp;
@@ -607,7 +632,9 @@ function fitPolynomialRegression(points: Array<{ intensity: number; lactate: num
     }
   }
 
-  return augmented.map((row, index) => row[size] / row[index]);
+  const coefficients = augmented.map((row, index) => row[size] / row[index]);
+  if (!coefficients.every(Number.isFinite)) throw new Error('Invalid polynomial fit');
+  return coefficients;
 }
 
 function evaluatePolynomial(coefficients: number[], x: number): number {
@@ -636,30 +663,27 @@ function perpendicularDistance(
 }
 
 function interpolateHeartRate(intensity: number, dataPoints: ReferenceDataPoint[]): number | undefined {
-  const points = dataPoints.filter((point) => point.heartRate !== undefined);
-  if (points.length < 2) return undefined;
-
-  const sorted = points.slice().sort((a, b) => a.intensity - b.intensity);
-  let left = sorted[0];
-  let right = sorted[sorted.length - 1];
-
-  for (let index = 0; index < sorted.length - 1; index += 1) {
-    if (sorted[index].intensity <= intensity && sorted[index + 1].intensity >= intensity) {
-      left = sorted[index];
-      right = sorted[index + 1];
-      break;
+  const sorted = dataPoints
+    .filter((point) => Number.isFinite(point.heartRate))
+    .slice().sort((a, b) => a.intensity - b.intensity);
+  const groups: Array<{ x: number; sum: number; count: number }> = [];
+  for (const point of sorted) {
+    const last = groups[groups.length - 1];
+    if (last && last.x === point.intensity) { last.sum += point.heartRate!; last.count += 1; }
+    else groups.push({ x: point.intensity, sum: point.heartRate!, count: 1 });
+  }
+  if (!groups.length || intensity < groups[0].x || intensity > groups[groups.length - 1].x) return undefined;
+  const value = (group: typeof groups[number]) => group.sum / group.count;
+  for (let index = 0; index < groups.length; index += 1) {
+    const left = groups[index];
+    if (intensity === left.x) return Math.round(value(left));
+    const right = groups[index + 1];
+    if (right && intensity < right.x) {
+      const fraction = (intensity - left.x) / (right.x - left.x);
+      return Math.round(value(left) + (value(right) - value(left)) * fraction);
     }
   }
-
-  if (left.heartRate === undefined || right.heartRate === undefined) return undefined;
-
-  if (intensity < left.intensity || intensity > right.intensity) {
-    const slope = (right.heartRate - left.heartRate) / (right.intensity - left.intensity);
-    return Math.round(left.heartRate + slope * (intensity - left.intensity));
-  }
-
-  const fraction = (intensity - left.intensity) / (right.intensity - left.intensity);
-  return Math.round(left.heartRate + (right.heartRate - left.heartRate) * fraction);
+  return undefined;
 }
 
 function findFirstRisePoint(dataPoints: ReferenceDataPoint[], rise = 0.4): ReferenceDataPoint {

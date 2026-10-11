@@ -157,6 +157,7 @@ export interface TrainingZone {
   heartRateFrom?: number;
   heartRateTo?: number;
   heartRateReliable: boolean;
+  heartRateSupport?: 'interpolated' | 'estimated' | 'partial' | 'unavailable';
   intensity: string;
   formula: string;
   color: string;
@@ -231,11 +232,15 @@ export interface AnalysisTimeOverrides {
 
 export interface MaxLactateResult {
   value?: number;
+  stagePeakLactate?: number;
+  allOutLactate?: number;
   source: 'allOut' | 'test' | 'none';
   distanceMeters?: number;
   timeSeconds?: number;
   speedKmh?: number;
   heartRate?: number;
+  heartRateSource?: 'override' | 'observed';
+  heartRateWarning?: string;
 }
 
 export interface AdviceItem {

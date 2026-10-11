@@ -35,8 +35,11 @@ export function estimateRiegelPerformances(raceTimes: RaceTime[]): RaceEstimate[
   if (inputs.length === 0) return [];
 
   return raceDistances.map(([distanceLabel, distanceMeters]) => {
-    const predictions = inputs.map((input) => predictRiegelTime(input, distanceMeters));
-    const estimatedTimeSeconds = median(predictions);
+    // A result at this exact distance is evidence, not a projection.
+    // Fastest valid performance wins deterministically when results repeat.
+    const matching = inputs.filter((input) => input.distanceMeters === distanceMeters);
+    const observed = matching.length > 0 ? Math.min(...matching.map((input) => input.timeSeconds)) : undefined;
+    const estimatedTimeSeconds = observed ?? median(inputs.map((input) => predictRiegelTime(input, distanceMeters)));
     const speedKmh = (distanceMeters / 1000 / estimatedTimeSeconds) * 3600;
     return {
       distanceLabel,
@@ -44,9 +47,11 @@ export function estimateRiegelPerformances(raceTimes: RaceTime[]): RaceEstimate[
       estimatedTimeSeconds,
       estimatedPaceSecondsPerKm: speedToPaceSecondsPerKm(speedKmh) ?? 0,
       method:
-        inputs.length === 1
-          ? `Riegel from ${formatRaceAnchor(inputs[0])}`
-          : `Median Riegel projection from ${inputs.length} race times`,
+        observed !== undefined
+          ? `Observed best ${formatRaceAnchor({ distanceMeters, timeSeconds: observed })} (${matching.length} same-distance; ${inputs.length} total valid race times)`
+          : inputs.length === 1
+            ? `Riegel from ${formatRaceAnchor(inputs[0])}`
+            : `Median Riegel projection from ${inputs.length} race times`,
       source: 'raceTime',
       inputCount: inputs.length,
       confidenceLabel: inputs.length >= 2 ? 'moderate' : 'low',
@@ -54,7 +59,14 @@ export function estimateRiegelPerformances(raceTimes: RaceTime[]): RaceEstimate[
   });
 }
 
+export function bestObservedRaceTime(raceTimes: RaceTime[], distanceMeters: number): number | undefined {
+  const matches = usableRaceTimes(raceTimes).filter((input) => input.distanceMeters === distanceMeters);
+  return matches.length > 0 ? Math.min(...matches.map((input) => input.timeSeconds)) : undefined;
+}
+
 export function estimateRiegelTimeForDistance(raceTimes: RaceTime[], distanceMeters: number): number | undefined {
+  const observed = bestObservedRaceTime(raceTimes, distanceMeters);
+  if (observed !== undefined) return observed;
   const inputs = usableRaceTimes(raceTimes);
   if (inputs.length === 0) return undefined;
   return median(inputs.map((input) => predictRiegelTime(input, distanceMeters)));

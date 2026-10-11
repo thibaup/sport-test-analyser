@@ -10,6 +10,7 @@ import type {
 } from '../types/lactate';
 import { clamp, round, speedToPaceSecondsPerKm, timeForDistanceSeconds } from './conversions';
 import {
+  bestObservedRaceTime,
   calculateRiegelBlendWeight,
   estimateRiegelPerformances,
   estimateRiegelTimeForDistance,
@@ -200,6 +201,7 @@ export function generateTargetPaces(
   const vvo2 = estimateVvo2Speed(anaerobic, maxTested, maxLactate);
   const sprintReserve = estimateSprintReserveSpeed(aerobic, anaerobic, vvo2, maxTested, maxLactate);
   const profileSetting = profileSettings[profile];
+  const hasRaceEvidence = usableRaceTimes(raceTimes).length > 0;
 
   return targetCategories.map((category) => {
     const anchor = selectAnchor(category.anchor, { aerobic, anaerobic, vvo2, maxTested, sprintReserve });
@@ -207,11 +209,12 @@ export function generateTargetPaces(
     const intensityTo = Math.max(intensityFrom + 0.02, category.intensityTo + profileSetting.intensityShift);
     const baseSpeedFrom = anchor * intensityFrom;
     const baseSpeedTo = anchor * intensityTo;
+    const raceBased = category.id === 'race-resistance' || category.id === 'sprint';
     const times = category.distancesMeters.map((distance) => {
-      const raceSpecificTime =
-        category.id === 'race-resistance' || category.id === 'sprint'
-          ? estimateRiegelTimeForDistance(raceTimes, distance)
-          : undefined;
+      const observed = raceBased ? bestObservedRaceTime(raceTimes, distance) : undefined;
+      const raceSpecificTime = raceBased
+        ? observed ?? estimateRiegelTimeForDistance(raceTimes, distance)
+        : undefined;
       return calculateDistanceRecommendation(
         distance,
         baseSpeedFrom,
@@ -219,6 +222,7 @@ export function generateTargetPaces(
         category,
         profileSetting.volumeMultiplier,
         raceSpecificTime,
+        observed !== undefined,
       );
     });
     const minSpeed = Math.min(...times.map((time) => time.speedFromKmh));
@@ -239,7 +243,7 @@ export function generateTargetPaces(
       recovery: 'Distance-specific',
       repetitions: 'Distance-specific',
       totalVolume: 'Distance-specific',
-      formula: `Anchor ${category.anchor} x ${intensityFrom.toFixed(3)}-${intensityTo.toFixed(3)} x (distance/${category.referenceDistanceMeters}m)^-${category.fatigueExponent.toFixed(3)}`,
+      formula: `${raceBased && hasRaceEvidence ? 'Fast target times: best same-distance observation, else median Riegel projection. Anchor fallback: ' : ''}Anchor ${category.anchor} x ${intensityFrom.toFixed(3)}-${intensityTo.toFixed(3)} x (distance/${category.referenceDistanceMeters}m)^-${category.fatigueExponent.toFixed(3)}`,
       times,
       warning,
     };
@@ -253,12 +257,22 @@ function calculateDistanceRecommendation(
   category: TargetCategoryConfig,
   volumeMultiplier: number,
   raceSpecificTimeSeconds?: number,
+  isObservedAtDistance = false,
 ): TargetDistanceTime {
-  if (raceSpecificTimeSeconds) {
+  if (raceSpecificTimeSeconds !== undefined) {
     const fastFactor = category.raceTimeFastFactor ?? 0.97;
     const controlledFactor = category.raceTimeControlledFactor ?? 1.04;
-    const fastTime = raceSpecificTimeSeconds * fastFactor;
-    const controlledTime = raceSpecificTimeSeconds * controlledFactor;
+    // Below 100%, a same-distance observed maximal speed must mean a
+    // fraction of race SPEED, not a faster-than-observed race TIME.
+    // Keep legacy time factors for cross-distance Riegel projections.
+    const timeWithFactor = (factor: number): number =>
+      isObservedAtDistance && factor < 1
+        ? raceSpecificTimeSeconds / factor
+        : raceSpecificTimeSeconds * factor;
+    const timeA = timeWithFactor(fastFactor);
+    const timeB = timeWithFactor(controlledFactor);
+    const fastTime = Math.min(timeA, timeB);
+    const controlledTime = Math.max(timeA, timeB);
     const speedFrom = speedFromTime(distanceMeters, controlledTime);
     const speedTo = speedFromTime(distanceMeters, fastTime);
     const avgTime = (fastTime + controlledTime) / 2;
@@ -282,7 +296,9 @@ function calculateDistanceRecommendation(
       totalVolumeMetersFrom: reps.from * distanceMeters,
       totalVolumeMetersTo: reps.to * distanceMeters,
       explanation: distanceUseExplanation(category.id, distanceMeters),
-      formula: `Riegel median race projection x ${(fastFactor * 100).toFixed(0)}-${(controlledFactor * 100).toFixed(0)}% target window`,
+      formula: isObservedAtDistance
+        ? `Observed best same-distance race: ${(fastFactor * 100).toFixed(0)}% and ${(controlledFactor * 100).toFixed(0)}% factors; below 100% = speed fraction (divide time), at/above 100% = time multiplier`
+        : `Riegel median race projection x ${(fastFactor * 100).toFixed(0)}-${(controlledFactor * 100).toFixed(0)}% time window`,
     };
   }
 
@@ -483,6 +499,9 @@ function estimateLactateRacePerformances(
     const cap = lactateAnchoredRaceCap(distance, aerobic, anaerobic, vvo2, enduranceScore);
     const speed = Math.min(danielsSpeed, cap);
     const time = timeForDistanceSeconds(distance, speed);
+    const durationMinutes = time / 60;
+    // The threshold cap can invalidate a previously valid Daniels solution.
+    if (durationMinutes < 3.5 - 1e-9 || durationMinutes > 260 + 1e-9) return;
     estimates.push({
       distanceLabel: label,
       distanceMeters: distance,
@@ -519,19 +538,26 @@ function vo2Fraction(durationMinutes: number): number {
   return 0.8 + 0.1894393 * Math.exp(-0.012778 * durationMinutes) + 0.2989558 * Math.exp(-0.1932605 * durationMinutes);
 }
 
-function solveDanielsRaceSpeed(vdot: number, distanceMeters: number): number | undefined {
-  let low = 5;
-  let high = 28;
+export function solveDanielsRaceSpeed(vdot: number, distanceMeters: number): number | undefined {
+  if (!Number.isFinite(vdot) || vdot <= 0 || !Number.isFinite(distanceMeters) || distanceMeters <= 0) return undefined;
+  const minimum = Math.max(5, (distanceMeters * 0.06) / 260);
+  const maximum = Math.min(28, (distanceMeters * 0.06) / 3.5);
+  if (minimum > maximum) return undefined;
+  const residual = (speed: number): number => {
+    const minutes = timeForDistanceSeconds(distanceMeters, speed) / 60;
+    return oxygenCost((speed * 1000) / 60) / vo2Fraction(minutes) - vdot;
+  };
+  let low = minimum;
+  let high = maximum;
+  const atLow = residual(low);
+  const atHigh = residual(high);
+  if (!Number.isFinite(atLow) || !Number.isFinite(atHigh) || atLow > 0 || atHigh < 0) return undefined;
+  if (atLow === 0) return low;
+  if (atHigh === 0) return high;
   for (let iteration = 0; iteration < 70; iteration += 1) {
     const mid = (low + high) / 2;
-    const durationMinutes = timeForDistanceSeconds(distanceMeters, mid) / 60;
-    if (durationMinutes < 3.5 || durationMinutes > 260) return undefined;
-    const estimatedVdot = oxygenCost((mid * 1000) / 60) / vo2Fraction(durationMinutes);
-    if (estimatedVdot > vdot) {
-      high = mid;
-    } else {
-      low = mid;
-    }
+    if (residual(mid) > 0) high = mid;
+    else low = mid;
   }
-  return round((low + high) / 2, 3);
+  return clamp(round((low + high) / 2, 3), minimum, maximum);
 }

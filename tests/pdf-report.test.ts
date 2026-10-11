@@ -75,7 +75,9 @@ describe("PDF training-zone range chart", () => {
       expect(analysis.zones).toHaveLength(zoneCount);
       expect(pdf).toContain(systemLabel);
       expect(pdf).toContain(finalZoneLabel);
-      expect(pdf).toContain("122-169 bpm");
+      expect(analysis.zones[0].heartRateFrom).toBeUndefined();
+      expect(analysis.zones[0].heartRateTo).toBe(zoneCount === 5 ? 175 : 170);
+      expect(pdf.includes(`<= ${zoneCount === 5 ? 175 : 170} bpm`)).toBe(true);
       expect(pdf).toContain(paceUnit === "minPerMile" ? "/mi" : "/km");
     },
   );

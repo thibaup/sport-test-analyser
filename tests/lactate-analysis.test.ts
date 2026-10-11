@@ -115,7 +115,7 @@ describe('lactate analysis reference regressions', () => {
     expect(analysis.selectedThresholds.anaerobic?.speedKmh).toBeCloseTo(complete.selectedThresholds.anaerobic?.speedKmh ?? 0, 3);
   });
 
-  it('matches the Coachbox PDF threshold and 7-zone reference output', () => {
+  it('matches measured-stage thresholds and the current seven-zone rules', () => {
     const analysis = analyzeTest(pdfReferenceSteps, pdfReferenceThresholdControls, 'intermediate', [], undefined, 7);
 
     expect(analysis.selectedThresholds.aerobic?.speedKmh).toBeCloseTo(14.26, 2);
@@ -125,13 +125,14 @@ describe('lactate analysis reference regressions', () => {
     expect(analysis.selectedThresholds.anaerobic?.lactate).toBeCloseTo(4.0, 2);
     expect(analysis.selectedThresholds.anaerobic?.heartRate).toBe(195);
 
-    expectZone(analysis.zones[0], 'REC', 9.3, 11.4, 122, 169);
-    expectZone(analysis.zones[1], 'AER', 11.4, 14.3, 170, 188);
-    expectZone(analysis.zones[2], 'TMP', 14.3, 15.0, 189, 192);
-    expectZone(analysis.zones[3], 'SST', 15.0, 15.8, 193, 195);
-    expectZone(analysis.zones[4], 'THR', 15.8, 16.3, 196, 199);
+    // Low-speed HR is outside measured coverage; boundaries use interpolation.
+    expectZone(analysis.zones[0], 'REC', 9.3, 11.4, undefined, 170);
+    expectZone(analysis.zones[1], 'AER', 11.4, 13.5, 171, 183);
+    expectZone(analysis.zones[2], 'TMP', 13.5, 15.0, 184, 191);
+    expectZone(analysis.zones[3], 'SST', 15.0, 15.8, 192, 195);
+    expectZone(analysis.zones[4], 'THR', 15.8, 16.3, 196, 197);
     expectZone(analysis.zones[5], 'VO2', 16.3, 19.0, 198, 198);
-    expectZone(analysis.zones[6], 'NMR', 19.0, undefined, 198, undefined);
+    expectZone(analysis.zones[6], 'NMR', 19.0, undefined, undefined, undefined);
     expect(analysis.zones[3].name).toContain('Sub-threshold');
     expect(analysis.zones[4].name).toContain('Above threshold');
     expect(localizeZone(analysis.zones[3], 'nl').name).toContain('Subdrempel');
@@ -149,9 +150,9 @@ describe('lactate analysis reference regressions', () => {
       205,
     );
 
-    expectZone(analysis.zones[4], 'THR', 15.8, 16.3, 196, 199);
-    expectZone(analysis.zones[5], 'VO2', 16.3, 19.0, 200, 203);
-    expectZone(analysis.zones[6], 'NMR', 19.0, undefined, 204, undefined);
+    expectZone(analysis.zones[4], 'THR', 15.8, 16.3, 196, 197);
+    expectZone(analysis.zones[5], 'VO2', 16.3, 19.0, 198, 202);
+    expectZone(analysis.zones[6], 'NMR', 19.0, undefined, 203, undefined);
   });
 
   it('gives shorter estimates more Riegel weight while still valuing longer race evidence', () => {

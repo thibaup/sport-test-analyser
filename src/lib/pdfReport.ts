@@ -1408,8 +1408,8 @@ function compactPace(secondsPerKm: number, paceUnit: PaceUnit): string {
 function formatZoneHeartRate(zone: TrainingZone, fallback: string): string {
   if (zone.heartRateFrom !== undefined && zone.heartRateTo !== undefined)
     return `${zone.heartRateFrom}-${zone.heartRateTo}`;
-  if (zone.heartRateFrom !== undefined) return `> ${zone.heartRateFrom}`;
-  if (zone.heartRateTo !== undefined) return `< ${zone.heartRateTo}`;
+  if (zone.heartRateFrom !== undefined) return `>= ${zone.heartRateFrom}`;
+  if (zone.heartRateTo !== undefined) return `<= ${zone.heartRateTo}`;
   return fallback;
 }
 

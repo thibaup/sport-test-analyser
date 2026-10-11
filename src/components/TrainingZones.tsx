@@ -119,8 +119,19 @@ export function TrainingZones({
                     <dd className="zone-value">
                       {formatHeartRateRange(zone, language)}
                     </dd>
+                    {zone.heartRateSupport && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        {({
+                          interpolated: language === 'nl' ? 'Geïnterpoleerd uit teststappen' : 'Interpolated from test stages',
+                          estimated: language === 'nl' ? 'Geschat' : 'Estimated',
+                          partial: language === 'nl' ? 'Gedeeltelijk beschikbaar' : 'Partially available',
+                          unavailable: language === 'nl' ? 'Onvoldoende gegevens' : 'Insufficient data',
+                        })[zone.heartRateSupport]}
+                      </p>
+                    )}
                   </div>
                 </dl>
+                {zone.warning && <p className="mt-3 text-xs text-amber-700">{zone.warning}</p>}
               </div>
             </div>
           </article>
@@ -197,7 +208,7 @@ function formatHeartRateRange(zone: TrainingZone, language: Language): string {
     return `${zone.heartRateFrom}-${zone.heartRateTo} bpm`;
   if (zone.shortName === "NMR" && zone.heartRateFrom !== undefined)
     return `>= ${zone.heartRateFrom} bpm`;
-  if (zone.heartRateFrom !== undefined) return `> ${zone.heartRateFrom} bpm`;
-  if (zone.heartRateTo !== undefined) return `< ${zone.heartRateTo} bpm`;
+  if (zone.heartRateFrom !== undefined) return `>= ${zone.heartRateFrom} bpm`;
+  if (zone.heartRateTo !== undefined) return `<= ${zone.heartRateTo} bpm`;
   return t(language, "unavailable");
 }

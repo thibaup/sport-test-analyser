@@ -12,6 +12,7 @@ interface ZoneContext {
   lt1HeartRate?: number;
   lt2HeartRate?: number;
   maxHeartRate?: number;
+  warning?: string;
   points: ValidTestPoint[];
 }
 
@@ -30,6 +31,7 @@ interface StandardZone {
   name: string;
   purpose: string;
   intensity: string;
+  warning?: string;
 }
 
 export function generateTrainingZones(
@@ -41,7 +43,16 @@ export function generateTrainingZones(
   const lt1 = thresholds.aerobic?.speedKmh;
   const lt2 = thresholds.anaerobic?.speedKmh;
 
-  if (lt1 == null || lt2 == null || lt2 <= lt1) return [];
+  if (lt1 == null || lt2 == null || !Number.isFinite(lt1) || !Number.isFinite(lt2) || lt1 <= 0 || lt2 <= lt1) return [];
+
+  const recordedHRs = points.map((point) => point.heartRate)
+    .filter((value): value is number => value !== undefined && Number.isFinite(value) && value > 0);
+  const highestRecordedHR = recordedHRs.length ? Math.max(...recordedHRs) : undefined;
+  const suppliedMaxHR = maxValues?.heartRate;
+  const knownHRs = [highestRecordedHR, thresholds.aerobic?.heartRate, thresholds.anaerobic?.heartRate]
+    .filter((value): value is number => value !== undefined && Number.isFinite(value) && value > 0);
+  const maxHRConflict = suppliedMaxHR !== undefined && (!Number.isFinite(suppliedMaxHR)
+    || suppliedMaxHR <= 0 || knownHRs.some((value) => suppliedMaxHR < value));
 
   const context: ZoneContext = {
     maxIntensity: maxValues?.speedKmh,
@@ -53,13 +64,14 @@ export function generateTrainingZones(
       thresholds.anaerobic?.heartRate != null
         ? Math.round(thresholds.anaerobic.heartRate)
         : undefined,
-    maxHeartRate: maxValues?.heartRate,
+    maxHeartRate: maxHRConflict ? highestRecordedHR : suppliedMaxHR,
+    warning: maxValues?.heartRateWarning ?? (maxHRConflict ? 'Maximum HR is below the supplied measurements; recorded HR is used instead.' : undefined),
     points,
   };
 
-  return standardZones(zoneCount, lt1, lt2, context)
-    .map(preventInvertedHeartRateRange)
-    .map(toTrainingZone);
+  const zones = validateHeartRateRanges(standardZones(zoneCount, lt1, lt2, context), context.maxHeartRate);
+  if (context.warning) zones[0] = { ...zones[0], warning: context.warning };
+  return zones.map((zone) => toTrainingZone(zone, points));
 }
 
 export function estimateVvo2Speed(
@@ -70,7 +82,8 @@ export function estimateVvo2Speed(
   const severeDomainEvidence = clamp((maxLactate - 4) / 3, 0, 1);
   const fromThreshold =
     anaerobicSpeed * (1.08 + 0.04 * severeDomainEvidence);
-  const fromTestPeak = maxTestedSpeed * (maxLactate >= 6 ? 1 : 1.03);
+  // Fade the existing 3% adjustment between 4 and 6 mmol/L instead of dropping it at 6.
+  const fromTestPeak = maxTestedSpeed * (1 + 0.03 * clamp((6 - maxLactate) / 2, 0, 1));
 
   return round(Math.max(fromThreshold, fromTestPeak), 2);
 }
@@ -93,7 +106,9 @@ function standard5Zones(
   lt2: number,
   context: ZoneContext,
 ): StandardZone[] {
-  const max = context.maxIntensity || 1.2 * lt2;
+  const usesAllOutMax = context.maxIntensity !== undefined && Number.isFinite(context.maxIntensity)
+    && round1(context.maxIntensity) > round1(1.03 * lt2);
+  const max = usesAllOutMax ? context.maxIntensity! : 1.2 * lt2;
 
   const z1Min = round1(0.6 * lt1);
   const z1Max = round1(0.85 * lt1);
@@ -175,12 +190,14 @@ function standard5Zones(
     zoneDefinition(
       5,
       'VO2',
-      '103% LT2 - 120% LT2',
+      usesAllOutMax ? '103% LT2 - all-out speed' : '103% LT2 - 120% LT2',
       z4Max,
       z5Max,
       nextHeartRate(hrZ4Max),
       hrZ5Max,
       '#EF4444',
+      context.maxIntensity !== undefined && !usesAllOutMax
+        ? 'All-out speed does not exceed the preceding zone; the 120% LT2 ceiling is used.' : undefined,
     ),
   ];
 }
@@ -331,7 +348,7 @@ function estimateHeartRateAtSpeed(
     .filter(
       (point) =>
         Number.isFinite(point.speedKmh) &&
-        Number.isFinite(point.heartRate),
+        Number.isFinite(point.heartRate) && Number(point.heartRate) > 0,
     )
     .map((point) => ({
       speedKmh: Number(point.speedKmh),
@@ -344,17 +361,20 @@ function estimateHeartRateAtSpeed(
   const groupedPoints: Array<{
     speedKmh: number;
     heartRate: number;
+    count: number;
   }> = [];
 
   for (const point of validPoints) {
     const previous = groupedPoints[groupedPoints.length - 1];
 
     if (previous && previous.speedKmh === point.speedKmh) {
-      previous.heartRate = (previous.heartRate + point.heartRate) / 2;
+      previous.heartRate += point.heartRate;
+      previous.count += 1;
     } else {
-      groupedPoints.push({ ...point });
+      groupedPoints.push({ ...point, count: 1 });
     }
   }
+  for (const point of groupedPoints) point.heartRate /= point.count;
 
   if (groupedPoints.length === 1) {
     return groupedPoints[0].speedKmh === speedKmh
@@ -444,7 +464,7 @@ function splitNmrHeartRate(
   }
 
   if (maxHeartRate <= vo2HeartRateFrom) {
-    return maxHeartRate;
+    return undefined;
   }
 
   return Math.min(
@@ -466,6 +486,7 @@ function zoneDefinition(
   minHeartRate: number | undefined,
   maxHeartRate: number | null | undefined,
   color: string,
+  warning?: string,
 ): StandardZone {
   const details = standardZoneDetails(shortName, zone);
 
@@ -479,31 +500,32 @@ function zoneDefinition(
     minHeartRate,
     maxHeartRate,
     color,
+    warning,
     ...details,
   };
 }
 
-function preventInvertedHeartRateRange(
-  zone: StandardZone,
-): StandardZone {
-  if (
-    zone.minHeartRate === undefined ||
-    zone.maxHeartRate === undefined ||
-    zone.maxHeartRate === null ||
-    zone.minHeartRate <= zone.maxHeartRate
-  ) {
+function validateHeartRateRanges(zones: StandardZone[], maxHeartRate?: number): StandardZone[] {
+  let previousMax: number | undefined;
+  let conflict = false;
+  return zones.map((zone) => {
+    const lower = zone.minHeartRate;
+    const upper = zone.maxHeartRate ?? undefined;
+    const values = [lower, upper].filter((value): value is number => value !== undefined);
+    conflict ||= values.some((value) => !Number.isFinite(value) || value <= 0
+      || (maxHeartRate !== undefined && value > maxHeartRate))
+      || (lower !== undefined && upper !== undefined && lower > upper)
+      || (previousMax !== undefined && values.some((value) => value <= previousMax!));
+    if (conflict) return { ...zone, minHeartRate: undefined, maxHeartRate: undefined,
+      warning: 'HR boundaries are inconsistent; more HR data is needed for this range.' };
+    previousMax = upper ?? lower ?? previousMax;
     return zone;
-  }
-
-  return {
-    ...zone,
-    minHeartRate: zone.maxHeartRate,
-    maxHeartRate: zone.maxHeartRate,
-  };
+  });
 }
 
 function toTrainingZone(
   zone: StandardZone,
+  points: ValidTestPoint[],
 ): TrainingZone {
   const speedToKmh = zone.maxIntensity ?? undefined;
 
@@ -513,6 +535,13 @@ function toTrainingZone(
 
   const heartRateFrom = zone.minHeartRate;
   const heartRateTo = zone.maxHeartRate ?? undefined;
+  const measuredSpeeds = points.filter((point) => Number.isFinite(point.heartRate) && Number(point.heartRate) > 0)
+    .map((point) => point.speedKmh);
+  const measuredRange = measuredSpeeds.length > 1 && zone.maxIntensity !== null
+    && zone.minIntensity >= Math.min(...measuredSpeeds) && zone.maxIntensity <= Math.max(...measuredSpeeds);
+  const heartRateSupport: TrainingZone['heartRateSupport'] = heartRateFrom === undefined && heartRateTo === undefined
+    ? 'unavailable' : zone.maxIntensity !== null && (heartRateFrom === undefined || heartRateTo === undefined)
+      ? 'partial' : measuredRange ? 'interpolated' : 'estimated';
 
   return {
     id: zone.id,
@@ -527,17 +556,16 @@ function toTrainingZone(
       speedToPaceSecondsPerKm(zone.minIntensity) ?? 0,
     heartRateFrom,
     heartRateTo,
-    heartRateReliable:
-      heartRateFrom !== undefined ||
-      heartRateTo !== undefined,
+    heartRateReliable: heartRateSupport === 'interpolated',
+    heartRateSupport,
     intensity: zone.intensity,
     formula: zone.boundaryLabel,
     color: zone.color,
-    warning:
+    warning: zone.warning ?? (
       zone.minHeartRate === undefined &&
       zone.maxHeartRate === undefined
         ? 'Add LT1, LT2, or max HR data for this zone.'
-        : undefined,
+        : undefined),
   };
 }
 

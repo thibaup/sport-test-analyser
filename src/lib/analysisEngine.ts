@@ -26,6 +26,14 @@ export function analyzeTest(
     maxLactateTest,
     maxHeartRateOverride,
   );
+  if (maxLactate.heartRateWarning) {
+    quality.warnings.push({
+      id: 'max-heart-rate-conflict',
+      severity: 'warning',
+      metric: 'heartRate',
+      message: maxLactate.heartRateWarning,
+    });
+  }
   const zones = generateTrainingZones(selectedThresholds, validPoints, zoneCount, maxLactate);
   const targets = generateTargetPaces(selectedThresholds, validPoints, profile, raceTimes, maxLactate.value);
   const raceEstimates = estimateRacePerformances(selectedThresholds, validPoints, raceTimes, maxLactate.value);
@@ -50,24 +58,34 @@ function determineMaxLactate(
   maxLactateTest?: MaxLactateTest,
   maxHeartRateOverride?: number,
 ): AppAnalysis['maxLactate'] {
-  const allOutLactate = maxLactateTest?.lactate;
+  const allOutLactate = isFiniteNumber(maxLactateTest?.lactate) && maxLactateTest.lactate >= 0
+    ? maxLactateTest.lactate : undefined;
   const allOutSpeed = calculateSpeedFromDuration(
     maxLactateTest?.distanceMeters ? maxLactateTest.distanceMeters / 1000 : undefined,
     maxLactateTest?.timeSeconds,
   );
-  const allOutHeartRate = isFiniteNumber(maxLactateTest?.heartRate) ? maxLactateTest.heartRate : undefined;
-  const heartRateValues = validPoints.map((point) => point.heartRate).filter((value): value is number => isFiniteNumber(value));
+  const allOutHeartRate = isFiniteNumber(maxLactateTest?.heartRate) && maxLactateTest.heartRate > 0 ? maxLactateTest.heartRate : undefined;
+  const heartRateValues = validPoints.map((point) => point.heartRate).filter((value): value is number => isFiniteNumber(value) && value > 0);
   const highestRecordedHeartRate = heartRateValues.length ? Math.max(...heartRateValues) : undefined;
   const derivedMaxHeartRate =
     allOutHeartRate !== undefined && highestRecordedHeartRate !== undefined
       ? Math.max(allOutHeartRate, highestRecordedHeartRate)
       : allOutHeartRate ?? highestRecordedHeartRate;
-  const maxHeartRate =
-    isFiniteNumber(maxHeartRateOverride) && maxHeartRateOverride >= 100
-      ? Math.round(maxHeartRateOverride)
-      : derivedMaxHeartRate;
-  if (isFiniteNumber(allOutLactate)) {
+  const validOverride = isFiniteNumber(maxHeartRateOverride) && maxHeartRateOverride >= 100
+    && (derivedMaxHeartRate === undefined || maxHeartRateOverride >= derivedMaxHeartRate);
+  const maxHeartRate = validOverride ? Math.round(maxHeartRateOverride) : derivedMaxHeartRate;
+  const stagePeakLactate = validPoints.length
+    ? Math.max(...validPoints.map((point) => point.lactate)) : undefined;
+  const sourceDetails = {
+    stagePeakLactate,
+    allOutLactate,
+    heartRateSource: validOverride ? 'override' as const : derivedMaxHeartRate !== undefined ? 'observed' as const : undefined,
+    heartRateWarning: isFiniteNumber(maxHeartRateOverride) && !validOverride
+      ? 'The supplied maximum HR is below the recorded HR or outside the supported range; recorded HR is used instead.' : undefined,
+  };
+  if (allOutLactate !== undefined && (stagePeakLactate === undefined || allOutLactate >= stagePeakLactate)) {
     return {
+      ...sourceDetails,
       value: round(allOutLactate, 1),
       source: 'allOut',
       distanceMeters: maxLactateTest?.distanceMeters,
@@ -78,6 +96,7 @@ function determineMaxLactate(
   }
   if (validPoints.length === 0) {
     return {
+      ...sourceDetails,
       source: 'none',
       distanceMeters: maxLactateTest?.distanceMeters,
       timeSeconds: maxLactateTest?.timeSeconds,
@@ -86,7 +105,8 @@ function determineMaxLactate(
     };
   }
   return {
-    value: round(Math.max(...validPoints.map((point) => point.lactate)), 1),
+    ...sourceDetails,
+    value: round(stagePeakLactate!, 1),
     source: 'test',
     distanceMeters: maxLactateTest?.distanceMeters,
     timeSeconds: maxLactateTest?.timeSeconds,

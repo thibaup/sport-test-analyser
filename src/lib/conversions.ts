@@ -16,30 +16,33 @@ export function isFiniteNumber(value: unknown): value is number {
 }
 
 export function speedToPaceSecondsPerKm(speedKmh?: number): number | undefined {
-  if (!speedKmh || speedKmh <= 0) return undefined;
+  if (!isFiniteNumber(speedKmh) || speedKmh <= 0) return undefined;
   return 3600 / speedKmh;
 }
 
 export function paceSecondsPerKmToSpeed(paceSecondsPerKm?: number): number | undefined {
-  if (!paceSecondsPerKm || paceSecondsPerKm <= 0) return undefined;
+  if (!isFiniteNumber(paceSecondsPerKm) || paceSecondsPerKm <= 0) return undefined;
   return 3600 / paceSecondsPerKm;
 }
 
 export function calculateDurationSeconds(distanceKm?: number, speedKmh?: number): number | undefined {
-  if (!distanceKm || !speedKmh || distanceKm <= 0 || speedKmh <= 0) return undefined;
+  if (!isFiniteNumber(distanceKm) || !isFiniteNumber(speedKmh) || distanceKm <= 0 || speedKmh <= 0) return undefined;
   return (distanceKm / speedKmh) * 3600;
 }
 
 export function calculateSpeedFromDuration(distanceKm?: number, durationSeconds?: number): number | undefined {
-  if (!distanceKm || !durationSeconds || distanceKm <= 0 || durationSeconds <= 0) return undefined;
+  if (!isFiniteNumber(distanceKm) || !isFiniteNumber(durationSeconds) || distanceKm <= 0 || durationSeconds <= 0) return undefined;
   return (distanceKm / durationSeconds) * 3600;
 }
 
 export function parseTimeToSeconds(raw: string): number | undefined {
   const value = raw.trim();
   if (!value) return undefined;
-  if (/^\d+(\.\d+)?$/.test(value)) return Number(value);
-  const parts = value.split(':').map((part) => Number(part));
+  if (/^\d+(\.\d+)?$/.test(value)) return isFiniteNumber(Number(value)) ? Number(value) : undefined;
+  const components = value.split(':');
+  if (components.length < 2 || components.length > 3 || components.some((part, index) =>
+    !(index === components.length - 1 ? /^\d+(\.\d+)?$/ : /^\d+$/).test(part.trim()))) return undefined;
+  const parts = components.map((part) => Number(part));
   if (parts.some((part) => !Number.isFinite(part) || part < 0)) return undefined;
   if (parts.length === 2) {
     const [minutes, seconds] = parts;

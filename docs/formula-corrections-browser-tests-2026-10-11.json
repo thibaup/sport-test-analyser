@@ -1,0 +1,591 @@
+{
+  "engine": "Node.js v22.16.0",
+  "executed": true,
+  "sourceEdited": false,
+  "total": 50,
+  "passed": 50,
+  "failed": 0,
+  "executionErrors": 0,
+  "expectedUnsupported": 16,
+  "cases": [
+    {
+      "id": "D01_demo_LT",
+      "input": "demo/no_race",
+      "expected": [
+        14.76,
+        15.74
+      ],
+      "actual": [
+        14.76,
+        15.74
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "D02_demo_zones",
+      "input": "demo/7zones",
+      "expected": [
+        [
+          9.6,
+          11.8
+        ],
+        [
+          11.8,
+          14
+        ],
+        [
+          14,
+          15.3
+        ],
+        [
+          15.3,
+          15.7
+        ],
+        [
+          15.7,
+          16.2
+        ],
+        [
+          16.2,
+          18.9
+        ],
+        [
+          18.9,
+          null
+        ]
+      ],
+      "actual": [
+        [
+          9.6,
+          11.8
+        ],
+        [
+          11.8,
+          14
+        ],
+        [
+          14,
+          15.3
+        ],
+        [
+          15.3,
+          15.7
+        ],
+        [
+          15.7,
+          16.2
+        ],
+        [
+          16.2,
+          18.9
+        ],
+        [
+          18.9,
+          null
+        ]
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "D03_demo_races",
+      "input": "demo/no_race/5k,10k,marathon",
+      "expected": [
+        1083.965144498576,
+        2298.6597536602962,
+        11092.757306226174
+      ],
+      "actual": [
+        1083.965144498576,
+        2298.6597536602962,
+        11092.757306226174
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "D04_demo_race_LT",
+      "input": "demo/5k=1080",
+      "expected": [
+        14.76,
+        15.74
+      ],
+      "actual": [
+        14.76,
+        15.74
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "D05_demo_race_predictions",
+      "input": "demo/5k=1080",
+      "expected": [
+        1080,
+        2275.5467100530936,
+        10860.919785306842
+      ],
+      "actual": [
+        1080,
+        2275.5467100530936,
+        10860.919785306842
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "D06_demo_max",
+      "input": "demo/allout12/stage6",
+      "expected": [
+        12,
+        6,
+        12,
+        198
+      ],
+      "actual": [
+        12,
+        6,
+        12,
+        198
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "D07_demo_HRsupport",
+      "input": "demo/zone1+zone6",
+      "expected": [
+        [
+          "partial",
+          false
+        ],
+        [
+          "estimated",
+          false
+        ]
+      ],
+      "actual": [
+        [
+          "partial",
+          false
+        ],
+        [
+          "estimated",
+          false
+        ]
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E01_fixed2_above",
+      "input": "lac=3,3.2,3.4,4,5",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E02_fixed4_endpoint",
+      "input": "lac=1,1.3,2.3,4",
+      "expected": 13,
+      "actual": 13,
+      "status": "PASS"
+    },
+    {
+      "id": "E03_fixed2_endpoint",
+      "input": "lac=.5,.6,1.4,2",
+      "expected": 13,
+      "actual": 13,
+      "status": "PASS"
+    },
+    {
+      "id": "E04_flat2_no_root",
+      "input": "lac=2x5",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E05_flat_Dmax",
+      "input": "lac=1x5",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E06_linear_Dmax",
+      "input": "lac=1,2,3,4,5",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E07_linear_modified",
+      "input": "lac=1,2,3,4,5",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E08_one_unique",
+      "input": "speed=10x5/lac=1..5",
+      "expected": [
+        5,
+        null,
+        null
+      ],
+      "actual": [
+        5,
+        null,
+        null
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E09_dup_order",
+      "input": "10kmh/lac=1,3,5/HR=130,140,150",
+      "expected": [
+        3,
+        140
+      ],
+      "actual": [
+        3,
+        140
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E10_dup_reverse",
+      "input": "10kmh/lac=5,3,1/HR=150,140,130",
+      "expected": [
+        3,
+        140
+      ],
+      "actual": [
+        3,
+        140
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E11_HR_outside",
+      "input": "HR only at 10..11; manual LT1=14",
+      "expected": [
+        14,
+        null
+      ],
+      "actual": [
+        14,
+        null
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E12_HR_inside",
+      "input": "HR at 10=130,12=150; LT1=11",
+      "expected": [
+        11,
+        140
+      ],
+      "actual": [
+        11,
+        140
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E13_tangent_missing",
+      "input": "quadratic low-slope",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E14_inflection_missing",
+      "input": "quadratic increasing",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E15_gradual_no_baseline",
+      "input": "lac=1,1.2,1.4,1.6,1.8",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E16_gradual_LT1_missing",
+      "input": "same/control baseline+.4",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E17_flat_baseline",
+      "input": "lac=1.5x5",
+      "expected": 1.5,
+      "actual": 1.5,
+      "status": "PASS"
+    },
+    {
+      "id": "E18_negative_rejected",
+      "input": "lac=[1,-1,2,3,4]",
+      "expected": [
+        4,
+        true
+      ],
+      "actual": [
+        4,
+        true
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E19_speed_zero",
+      "input": "speed=0/lac=2",
+      "expected": 0,
+      "actual": 0,
+      "status": "PASS"
+    },
+    {
+      "id": "E20_parse_doublecolon",
+      "input": "1::02",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E21_parse_trailingcolon",
+      "input": "1:",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E22_parse_exponentcolon",
+      "input": "1e3:00",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E23_parse_valid",
+      "input": "1:02",
+      "expected": 62,
+      "actual": 62,
+      "status": "PASS"
+    },
+    {
+      "id": "E24_race_exact_stable",
+      "input": "5k=1200 then add 800m=138",
+      "expected": [
+        1200,
+        1200
+      ],
+      "actual": [
+        1200,
+        1200
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E25_race_repeat_best",
+      "input": "5k=1200,1100,1180",
+      "expected": 1100,
+      "actual": 1100,
+      "status": "PASS"
+    },
+    {
+      "id": "E26_sprint_observed",
+      "input": "demo+200m=30",
+      "expected": [
+        31.578947368421055,
+        33.333333333333336
+      ],
+      "actual": [
+        31.578947368421055,
+        33.333333333333336
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E27_sprint_projected",
+      "input": "demo+5k=1080",
+      "expected": [
+        32.05161044826716,
+        33.83225547317089
+      ],
+      "actual": [
+        32.05161044826716,
+        33.83225547317089
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E28_solver_1500",
+      "input": "VDOT79.75/1500m",
+      "expected": 25.175,
+      "actual": 25.175,
+      "status": "PASS"
+    },
+    {
+      "id": "E29_solver_marathon",
+      "input": "VDOT34.5/42195m",
+      "expected": 9.771,
+      "actual": 9.771,
+      "status": "PASS"
+    },
+    {
+      "id": "E30_solver_bad_vdot",
+      "input": "VDOT=-1/5000m",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E31_solver_unbracketed",
+      "input": "VDOT=1000/5000m",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E32_solver_short",
+      "input": "VDOT=50/1m",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E33_override_fast80",
+      "input": "easy/400m/from=80",
+      "expected": [
+        80,
+        200,
+        200,
+        true
+      ],
+      "actual": [
+        80,
+        200,
+        200,
+        true
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E34_override_times_inverted",
+      "input": "easy/400m/from140/to100",
+      "expected": true,
+      "actual": true,
+      "status": "PASS"
+    },
+    {
+      "id": "E35_override_reps_inverted",
+      "input": "easy/400m/reps9..3",
+      "expected": true,
+      "actual": true,
+      "status": "PASS"
+    },
+    {
+      "id": "E36_HR_override_reject",
+      "input": "demo/maxHRoverride170",
+      "expected": [
+        198,
+        true,
+        "observed"
+      ],
+      "actual": [
+        198,
+        true,
+        "observed"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E37_HR_partial",
+      "input": "demo/zone1",
+      "expected": [
+        "partial",
+        false
+      ],
+      "actual": [
+        "partial",
+        false
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E38_zone5_max13",
+      "input": "LT1=14.76/LT2=15.74/allout13",
+      "expected": [
+        18.9,
+        true
+      ],
+      "actual": [
+        18.9,
+        true
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E39_max_lac_sources",
+      "input": "demo/allout lac5/stage peak6",
+      "expected": [
+        5,
+        6,
+        6,
+        "test"
+      ],
+      "actual": [
+        5,
+        6,
+        6,
+        "test"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E40_vvo2_continuous",
+      "input": "LT2=15/peak18.5/lac5.99vs6",
+      "expected": [
+        18.5,
+        18.5
+      ],
+      "actual": [
+        18.5,
+        18.5
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E41_smooth_cubic_warning",
+      "input": "lac=1+.1i+.06i^3 (i=0..5)",
+      "expected": [
+        true,
+        false
+      ],
+      "actual": [
+        true,
+        false
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "E42_invalid_manual_speed",
+      "input": "manual LT1=20 outside10..14",
+      "expected": null,
+      "actual": null,
+      "status": "PASS_UNSUPPORTED"
+    },
+    {
+      "id": "E43_two_unique_no_crash",
+      "input": "6 steps 2 unique speeds",
+      "expected": [
+        6,
+        null
+      ],
+      "actual": [
+        6,
+        null
+      ],
+      "status": "PASS"
+    }
+  ],
+  "bridgeJobId": "0ff948e0-24e9-4581-808a-c235d5f865c6"
+}
